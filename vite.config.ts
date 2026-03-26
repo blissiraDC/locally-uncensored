@@ -350,6 +350,136 @@ function comfyLauncher(): Plugin {
         })
       })
 
+      // API: Install ComfyUI from scratch
+      const installLogs: string[] = []
+      let installStatus: 'idle' | 'installing' | 'complete' | 'error' = 'idle'
+      let installError = ''
+
+      server.middlewares.use('/local-api/install-comfyui', (req, res) => {
+        if (req.method === 'GET') {
+          // Return install status
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: installStatus, error: installError, logs: installLogs.slice(-30) }))
+          return
+        }
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+
+        if (installStatus === 'installing') {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: 'already_installing' }))
+          return
+        }
+
+        // Check Python is available
+        try {
+          execSync('python --version', { stdio: 'ignore' })
+        } catch {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ status: 'error', error: 'Python not found. Install Python 3.10+ from python.org first.' }))
+          return
+        }
+
+        installStatus = 'installing'
+        installError = ''
+        installLogs.length = 0
+
+        const home = process.env.USERPROFILE || process.env.HOME || ''
+        const installDir = join(home, 'ComfyUI')
+
+        const log = (msg: string) => {
+          installLogs.push(msg)
+          if (installLogs.length > 200) installLogs.shift()
+          console.log(`[ComfyUI Install] ${msg}`)
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ status: 'started', path: installDir }))
+
+        // Run installation in background
+        ;(async () => {
+          try {
+            // Step 1: Clone
+            if (!existsSync(installDir)) {
+              log('Cloning ComfyUI from GitHub...')
+              const clone = spawn('git', ['clone', 'https://github.com/comfyanonymous/ComfyUI.git', installDir], { shell: true, stdio: ['ignore', 'pipe', 'pipe'] })
+              clone.stdout?.on('data', (d) => log(d.toString().trim()))
+              clone.stderr?.on('data', (d) => log(d.toString().trim()))
+              await new Promise<void>((resolve, reject) => {
+                clone.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`git clone failed (exit ${code})`)))
+              })
+              log('Clone complete.')
+            } else if (existsSync(join(installDir, 'main.py'))) {
+              log('ComfyUI directory already exists, skipping clone.')
+            } else {
+              throw new Error(`${installDir} exists but is not ComfyUI. Delete it or choose another location.`)
+            }
+
+            // Step 2: Install Python dependencies
+            log('Installing Python dependencies (this may take several minutes)...')
+            const pip = spawn('pip', ['install', '-r', 'requirements.txt'], { cwd: installDir, shell: true, stdio: ['ignore', 'pipe', 'pipe'] })
+            pip.stdout?.on('data', (d) => {
+              const lines = d.toString().split('\n').filter((l: string) => l.trim())
+              lines.forEach((l: string) => log(l.trim()))
+            })
+            pip.stderr?.on('data', (d) => {
+              const lines = d.toString().split('\n').filter((l: string) => l.trim())
+              lines.forEach((l: string) => log(l.trim()))
+            })
+            await new Promise<void>((resolve, reject) => {
+              pip.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`pip install failed (exit ${code})`)))
+            })
+            log('Dependencies installed.')
+
+            // Step 3: Install PyTorch with CUDA (if NVIDIA GPU detected)
+            log('Checking for NVIDIA GPU...')
+            let hasNvidia = false
+            try {
+              execSync('nvidia-smi', { stdio: 'ignore' })
+              hasNvidia = true
+            } catch { /* no nvidia */ }
+
+            if (hasNvidia) {
+              log('NVIDIA GPU found. Installing PyTorch with CUDA support...')
+              const torch = spawn('pip', ['install', 'torch', 'torchvision', 'torchaudio', '--index-url', 'https://download.pytorch.org/whl/cu121'], { cwd: installDir, shell: true, stdio: ['ignore', 'pipe', 'pipe'] })
+              torch.stdout?.on('data', (d) => log(d.toString().trim()))
+              torch.stderr?.on('data', (d) => log(d.toString().trim()))
+              await new Promise<void>((resolve, reject) => {
+                torch.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`PyTorch CUDA install failed (exit ${code})`)))
+              })
+              log('PyTorch with CUDA installed.')
+            } else {
+              log('No NVIDIA GPU — using CPU PyTorch (already in requirements).')
+            }
+
+            // Step 4: Save path to .env
+            const envPath = resolve(__dirname, '.env')
+            const { writeFileSync, readFileSync } = require('fs')
+            let envContent = ''
+            try { envContent = readFileSync(envPath, 'utf8') } catch { /* no .env */ }
+            if (envContent.includes('COMFYUI_PATH=')) {
+              envContent = envContent.replace(/COMFYUI_PATH=.*/g, `COMFYUI_PATH=${installDir}`)
+            } else {
+              envContent += `${envContent.endsWith('\n') ? '' : '\n'}COMFYUI_PATH=${installDir}\n`
+            }
+            writeFileSync(envPath, envContent, 'utf8')
+            process.env.COMFYUI_PATH = installDir
+            log(`Path saved to .env: ${installDir}`)
+
+            // Step 5: Start ComfyUI
+            log('Starting ComfyUI...')
+            startComfy(installDir)
+            log('ComfyUI started! You can now download models and generate images/videos.')
+
+            installStatus = 'complete'
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            log(`ERROR: ${msg}`)
+            installError = msg
+            installStatus = 'error'
+          }
+        })()
+      })
+
       // API: Status + logs
       server.middlewares.use('/local-api/comfyui-status', async (_req, res) => {
         let running = false

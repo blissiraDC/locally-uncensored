@@ -30,6 +30,10 @@ export function CreateView() {
   const [comfyPathInput, setComfyPathInput] = useState('')
   const [pathSaving, setPathSaving] = useState(false)
   const [pathError, setPathError] = useState('')
+  const [installing, setInstalling] = useState(false)
+  const [installLogs, setInstallLogs] = useState<string[]>([])
+  const [installError, setInstallError] = useState('')
+  const installPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollIdRef = useRef(0) // prevent duplicate polling
 
@@ -96,7 +100,7 @@ export function CreateView() {
   return (
     <div className="h-full flex flex-col">
       {/* Status: ComfyUI not found — setup wizard */}
-      {notFound && (
+      {notFound && !installing && (
         <div className="border-b border-red-200 dark:border-red-500/20">
           <div className="p-4 bg-red-50 dark:bg-red-500/5 space-y-3">
             <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm font-medium">
@@ -104,61 +108,116 @@ export function CreateView() {
               ComfyUI not found — required for image & video generation
             </div>
 
-            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-4 space-y-3 border border-gray-200 dark:border-white/10">
-              <p className="text-xs text-gray-500">Option 1: Enter your ComfyUI path</p>
-              <div className="flex gap-2">
-                <div className="flex-1 relative">
-                  <FolderOpen size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    value={comfyPathInput}
-                    onChange={(e) => { setComfyPathInput(e.target.value); setPathError('') }}
-                    placeholder="C:\Users\you\ComfyUI"
-                    className="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-4 space-y-4 border border-gray-200 dark:border-white/10">
+              {/* Option 1: Auto-install */}
+              <div>
+                <p className="text-xs text-gray-500 mb-2">Option 1: Automatic install (recommended)</p>
                 <button
                   onClick={async () => {
-                    if (!comfyPathInput.trim()) { setPathError('Enter a path'); return }
-                    setPathSaving(true)
-                    setPathError('')
+                    setInstalling(true)
+                    setInstallError('')
+                    setInstallLogs([])
                     try {
-                      const res = await fetch('/local-api/set-comfyui-path', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ path: comfyPathInput.trim() }),
-                      })
-                      const data = await res.json()
-                      if (data.status === 'ok') {
-                        // Trigger reconnect
-                        setTimeout(() => pollStatus(), 2000)
-                      } else {
-                        setPathError(data.error || 'Invalid path')
-                      }
+                      await fetch('/local-api/install-comfyui', { method: 'POST' })
+                      // Poll install progress
+                      installPollRef.current = setInterval(async () => {
+                        try {
+                          const res = await fetch('/local-api/install-comfyui')
+                          const data = await res.json()
+                          setInstallLogs(data.logs || [])
+                          if (data.status === 'complete') {
+                            if (installPollRef.current) clearInterval(installPollRef.current)
+                            installPollRef.current = null
+                            setInstalling(false)
+                            setTimeout(() => pollStatus(), 2000)
+                          } else if (data.status === 'error') {
+                            if (installPollRef.current) clearInterval(installPollRef.current)
+                            installPollRef.current = null
+                            setInstallError(data.error || 'Installation failed')
+                            setInstalling(false)
+                          }
+                        } catch { /* keep polling */ }
+                      }, 2000)
                     } catch {
-                      setPathError('Failed to save path')
+                      setInstallError('Failed to start installation')
+                      setInstalling(false)
                     }
-                    setPathSaving(false)
                   }}
-                  disabled={pathSaving}
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium transition-colors shrink-0"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium transition-colors"
                 >
-                  {pathSaving ? <Loader2 size={14} className="animate-spin" /> : 'Save & Connect'}
+                  <Download size={16} /> Install ComfyUI Automatically
                 </button>
+                <p className="text-[10px] text-gray-400 mt-1">Clones ComfyUI, installs Python dependencies, and sets up CUDA. Takes 5-10 minutes.</p>
               </div>
-              {pathError && <p className="text-xs text-red-500">{pathError}</p>}
 
+              {/* Option 2: Manual path */}
               <div className="border-t border-gray-200 dark:border-white/5 pt-3">
-                <p className="text-xs text-gray-500 mb-2">Option 2: Install ComfyUI first</p>
-                <a
-                  href="https://github.com/comfyanonymous/ComfyUI"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 text-xs transition-colors"
-                >
-                  <ExternalLink size={12} /> Install ComfyUI from GitHub
-                </a>
+                <p className="text-xs text-gray-500 mb-2">Option 2: Already have ComfyUI? Enter the path</p>
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <FolderOpen size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={comfyPathInput}
+                      onChange={(e) => { setComfyPathInput(e.target.value); setPathError('') }}
+                      placeholder="C:\Users\you\ComfyUI"
+                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!comfyPathInput.trim()) { setPathError('Enter a path'); return }
+                      setPathSaving(true)
+                      setPathError('')
+                      try {
+                        const res = await fetch('/local-api/set-comfyui-path', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ path: comfyPathInput.trim() }),
+                        })
+                        const data = await res.json()
+                        if (data.status === 'ok') {
+                          setTimeout(() => pollStatus(), 2000)
+                        } else {
+                          setPathError(data.error || 'Invalid path')
+                        }
+                      } catch {
+                        setPathError('Failed to save path')
+                      }
+                      setPathSaving(false)
+                    }}
+                    disabled={pathSaving}
+                    className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium transition-colors shrink-0"
+                  >
+                    {pathSaving ? <Loader2 size={14} className="animate-spin" /> : 'Connect'}
+                  </button>
+                </div>
+                {pathError && <p className="text-xs text-red-500 mt-1">{pathError}</p>}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ComfyUI installing */}
+      {installing && (
+        <div className="border-b border-blue-200 dark:border-blue-500/20">
+          <div className="p-4 bg-blue-50 dark:bg-blue-500/5 space-y-3">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-medium">
+              <Loader2 size={16} className="animate-spin" />
+              Installing ComfyUI... This takes 5-10 minutes.
+            </div>
+            {installLogs.length > 0 && (
+              <div className="bg-gray-900 rounded-lg p-3 max-h-40 overflow-y-auto font-mono text-xs text-gray-400">
+                {installLogs.slice(-15).map((log, i) => (
+                  <div key={i} className="truncate">{log}</div>
+                ))}
+              </div>
+            )}
+            {installError && (
+              <div className="flex items-center gap-2 text-red-500 text-xs">
+                <AlertTriangle size={14} /> {installError}
+              </div>
+            )}
           </div>
         </div>
       )}

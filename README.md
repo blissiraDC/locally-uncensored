@@ -114,14 +114,16 @@ npm run dev
 
 Open **http://localhost:5173** — the app recommends models on first launch.
 
-### Image/Video Generation (Optional)
+### Image & Video Generation
 
-1. Install [ComfyUI](https://github.com/comfyanonymous/ComfyUI) anywhere on your system
-2. Open the **Create** tab in the app — it will auto-detect ComfyUI or ask you to enter the path
-3. Go to **Model Manager → Discover → Image/Video** and click **Install All** on any bundle
-4. That's it — models are downloaded directly into the right ComfyUI folders
+No separate installation needed! When you open the **Create** tab:
 
-No manual `.env` editing needed. The app handles everything.
+1. The app checks for ComfyUI automatically
+2. If not found, click **"Install ComfyUI Automatically"** — it clones, installs dependencies, and sets up CUDA in one click
+3. Go to **Model Manager → Discover → Image/Video** and click **Install All** on any model bundle
+4. Generate images and videos — everything is ready
+
+The entire setup happens inside the app. No terminal commands, no manual config files.
 
 ### One-Click Start (Windows)
 
