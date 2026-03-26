@@ -305,6 +305,51 @@ function comfyLauncher(): Plugin {
         res.end(JSON.stringify(downloads))
       })
 
+      // API: Set ComfyUI path (writes to .env and starts ComfyUI)
+      server.middlewares.use('/local-api/set-comfyui-path', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { path: newPath } = JSON.parse(body)
+            const mainPy = join(newPath, 'main.py')
+            if (!existsSync(mainPy)) {
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ status: 'error', error: `main.py not found in "${newPath}". Make sure this is the ComfyUI root folder.` }))
+              return
+            }
+
+            // Write to .env file
+            const envPath = resolve(__dirname, '.env')
+            const { writeFileSync, readFileSync } = require('fs')
+            let envContent = ''
+            try { envContent = readFileSync(envPath, 'utf8') } catch { /* no .env yet */ }
+
+            if (envContent.includes('COMFYUI_PATH=')) {
+              envContent = envContent.replace(/COMFYUI_PATH=.*/g, `COMFYUI_PATH=${newPath}`)
+            } else {
+              envContent += `${envContent.endsWith('\n') ? '' : '\n'}COMFYUI_PATH=${newPath}\n`
+            }
+            writeFileSync(envPath, envContent, 'utf8')
+
+            // Update process.env
+            process.env.COMFYUI_PATH = newPath
+            console.log(`[ComfyUI] Path set to: ${newPath}`)
+
+            // Auto-start ComfyUI
+            const result = startComfy(newPath)
+            console.log(`[ComfyUI] Start result: ${result.status}`)
+
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ status: 'ok', path: newPath }))
+          } catch (err) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ status: 'error', error: String(err) }))
+          }
+        })
+      })
+
       // API: Status + logs
       server.middlewares.use('/local-api/comfyui-status', async (_req, res) => {
         let running = false

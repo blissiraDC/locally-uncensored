@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Image, Video, WifiOff, Loader2, CheckCircle, AlertTriangle, RefreshCw, Settings } from 'lucide-react'
+import { Image, Video, WifiOff, Loader2, CheckCircle, AlertTriangle, RefreshCw, Settings, FolderOpen, ExternalLink, Copy } from 'lucide-react'
 import { useCreate } from '../../hooks/useCreate'
 import { useCreateStore } from '../../stores/createStore'
 import { PromptInput } from './PromptInput'
@@ -26,7 +26,10 @@ export function CreateView() {
   const [status, setStatus] = useState<ComfyStatus | null>(null)
   const [startupLogs, setStartupLogs] = useState<string[]>([])
   const [retrying, setRetrying] = useState(false)
-  const [showParams, setShowParams] = useState(false) // mobile params toggle
+  const [showParams, setShowParams] = useState(false)
+  const [comfyPathInput, setComfyPathInput] = useState('')
+  const [pathSaving, setPathSaving] = useState(false)
+  const [pathError, setPathError] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollIdRef = useRef(0) // prevent duplicate polling
 
@@ -92,12 +95,70 @@ export function CreateView() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Status: ComfyUI not found */}
+      {/* Status: ComfyUI not found — setup wizard */}
       {notFound && (
-        <div className="flex items-center justify-between px-4 py-3 bg-red-50 dark:bg-red-500/10 border-b border-red-200 dark:border-red-500/20" role="alert">
-          <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
-            <WifiOff size={16} />
-            <span>ComfyUI not found. Install it or set COMFYUI_PATH in .env</span>
+        <div className="border-b border-red-200 dark:border-red-500/20">
+          <div className="p-4 bg-red-50 dark:bg-red-500/5 space-y-3">
+            <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm font-medium">
+              <WifiOff size={16} />
+              ComfyUI not found — required for image & video generation
+            </div>
+
+            <div className="bg-white dark:bg-[#2a2a2a] rounded-lg p-4 space-y-3 border border-gray-200 dark:border-white/10">
+              <p className="text-xs text-gray-500">Option 1: Enter your ComfyUI path</p>
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <FolderOpen size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    value={comfyPathInput}
+                    onChange={(e) => { setComfyPathInput(e.target.value); setPathError('') }}
+                    placeholder="C:\Users\you\ComfyUI"
+                    className="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!comfyPathInput.trim()) { setPathError('Enter a path'); return }
+                    setPathSaving(true)
+                    setPathError('')
+                    try {
+                      const res = await fetch('/local-api/set-comfyui-path', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: comfyPathInput.trim() }),
+                      })
+                      const data = await res.json()
+                      if (data.status === 'ok') {
+                        // Trigger reconnect
+                        setTimeout(() => pollStatus(), 2000)
+                      } else {
+                        setPathError(data.error || 'Invalid path')
+                      }
+                    } catch {
+                      setPathError('Failed to save path')
+                    }
+                    setPathSaving(false)
+                  }}
+                  disabled={pathSaving}
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium transition-colors shrink-0"
+                >
+                  {pathSaving ? <Loader2 size={14} className="animate-spin" /> : 'Save & Connect'}
+                </button>
+              </div>
+              {pathError && <p className="text-xs text-red-500">{pathError}</p>}
+
+              <div className="border-t border-gray-200 dark:border-white/5 pt-3">
+                <p className="text-xs text-gray-500 mb-2">Option 2: Install ComfyUI first</p>
+                <a
+                  href="https://github.com/comfyanonymous/ComfyUI"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 text-xs transition-colors"
+                >
+                  <ExternalLink size={12} /> Install ComfyUI from GitHub
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       )}
