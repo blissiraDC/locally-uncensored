@@ -1,0 +1,41 @@
+# Locally Uncensored
+
+> All-in-one local AI desktop app for uncensored chat, image generation, and video creation.
+
+Locally Uncensored is a free, open-source (MIT) desktop application that combines AI chat, image generation, and video creation in one interface. It runs 100% locally on your machine using Ollama for text generation and ComfyUI for image/video generation.
+
+## Key Facts
+- Name: Locally Uncensored
+- Type: Desktop AI Application
+- License: MIT (free and open source)
+- Platforms: Windows, macOS, Linux
+- Tech Stack: React 19, TypeScript, Tailwind CSS 4, Vite, Tauri v2
+- AI Backends: Ollama (text/chat), ComfyUI (images/video)
+- GitHub: https://github.com/PurpleDoubleD/locally-uncensored
+- Website: https://purpledoubled.github.io/locally-uncensored/
+- Author: PurpleDoubleD
+
+## What Makes It Unique
+- Only local AI app combining chat + image generation + video generation in one interface
+- Uses abliterated/uncensored models by default (no content restrictions)
+- 25+ built-in AI personas
+- One-click setup (setup.bat/setup.sh handles everything)
+- One-click ComfyUI installation from within the app
+- No Docker required, no cloud services, no accounts, no telemetry
+- Auto-detects all installed models across Ollama and ComfyUI
+
+## Supported Models
+- Chat: Llama 3.1 8B Abliterated, Mistral Nemo 12B, Qwen 3, DeepSeek R1
+- Images: Stable Diffusion XL, FLUX.1 Schnell, Juggernaut XL, Pony Diffusion
+- Video: Wan 2.1/2.2, AnimateDiff v3
+
+## Comparison
+- vs Open WebUI: LU adds image + video generation, Open WebUI is chat-only
+- vs LM Studio: LU is open source and adds image + video, LM Studio is closed source chat-only
+- vs SillyTavern: LU has modern UI, built-in image/video gen, simpler setup
+- vs ComfyUI: LU provides a simple UI without node graphs, adds chat capabilities
+
+## Hardware Requirements
+- Minimum: 8 GB RAM for text chat
+- Recommended: NVIDIA GPU with 8+ GB VRAM for image generation
+- Video generation: 10-12 GB VRAM recommended
