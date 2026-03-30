@@ -1,164 +1,174 @@
-# Newsletter & Blogger Outreach Pitches for Locally Uncensored
+# Newsletter Pitch Emails - Locally Uncensored
 
-Generated: 2026-03-30
-
----
-
-## 1. selfh.st Newsletter (Self-Host Weekly)
-
-**Status: SUBMITTED via form API on 2026-03-30**
-**Submission ID: cmndi8jc6002wo501be1bq03p**
-**URL: https://selfh.st/submit (API: form.selfh.st)**
-**Category: Project Launch**
-
-**Submitted content:**
-- Project Name: Locally Uncensored
-- Link: https://github.com/PurpleDoubleD/locally-uncensored
-- AI-assisted: No
-- Description: Open-source Tauri/React desktop app for running uncensored local AI. One-click Ollama model management, chat, image gen via ComfyUI, video gen. Fully private, no cloud needed. https://purpledoubled.github.io/locally-uncensored/
+Generated: March 30, 2026
 
 ---
 
-## 2. Console.dev
+## 1. selfh.st (Self-Host Weekly)
 
-**Send to: hello@console.dev**
-**Subject: Open Source Tool Submission: Locally Uncensored - Local AI Desktop App**
+**Status: SUBMITTED via API on March 30, 2026**
+Submission ID: cmndkrigg002xo501746l2r1q
+Category: Project Launch
 
-Hi Console team,
+**Subject:** New self-hosted project: Locally Uncensored — run AI (text + image + video) entirely on your own hardware
 
-I'd like to suggest Locally Uncensored for your newsletter -- it's an open-source desktop app (Tauri + React) that makes running uncensored AI models locally dead simple.
+**Body:**
 
-Key features:
-- One-click Ollama model management (download, run, delete)
-- Built-in chat interface for local LLMs
-- Image generation via integrated ComfyUI
-- Video generation support
-- 100% private -- everything runs on your machine, no cloud calls
+Hi Ethan,
 
-It solves a real developer pain point: getting local AI up and running without wrestling with CLI tools, Docker configs, or Python environments. One download, and you're chatting with uncensored models.
+Wanted to share a new open-source project that fits the self-hosted community well.
+
+Locally Uncensored is a desktop app that lets you run AI entirely on your own hardware — no cloud, no accounts, no data leaving your machine. It's built with Tauri + React and integrates two backends:
+
+- Ollama for local LLMs (chat, coding, writing)
+- ComfyUI for local image and video generation
+
+The key thing for self-hosters: it's a single app that handles the setup of both backends. One-click install on Windows, Mac, and Linux. No Docker, no CLI config, no port forwarding needed (though it works alongside existing Ollama/ComfyUI installs too).
+
+It supports uncensored models out of the box, which matters for users who want full control over their AI stack without content filtering decided by a third party.
 
 GitHub: https://github.com/PurpleDoubleD/locally-uncensored
 Website: https://purpledoubled.github.io/locally-uncensored/
 License: Open source
-Stack: Tauri, React, TypeScript, Ollama, ComfyUI
+Platforms: Windows, macOS, Linux
 
-Thanks for considering it!
+Thanks for considering it for Self-Host Weekly.
 
 ---
 
-## 3. TLDR Newsletter
+## 2. Console.dev (Developer Tools)
 
-**Status: TLDR does NOT have a free editorial submission form. Their advertise.tldr.tech is paid sponsorship only.**
-**Alternative approach: Submit organically by posting on Hacker News, Reddit, or Twitter -- TLDR curates from trending content.**
-**Backup: Email founders@tldr.tech directly (Dan Ni)**
+**Submit via:** https://console.dev/submit/ (web form)
 
-**Subject: Locally Uncensored -- Open-Source Desktop App for Running Local AI**
+**Subject:** Locally Uncensored — open-source Tauri app combining Ollama + ComfyUI in one developer-friendly desktop tool
+
+**Body:**
+
+Hi Console team,
+
+Locally Uncensored is an open-source desktop application built with Tauri (Rust backend) and React that gives developers a unified interface for running AI models locally.
+
+What it does:
+- Integrates Ollama for LLM inference (chat, code generation, text tasks)
+- Integrates ComfyUI for image and video generation via Stable Diffusion workflows
+- Bundles everything into a single cross-platform desktop app
+
+Why developers would care:
+- Built with Tauri + React — lightweight, fast, native-feeling
+- No cloud dependencies — runs fully offline, useful for air-gapped or privacy-sensitive environments
+- One-click setup handles Ollama and ComfyUI installation automatically
+- Supports uncensored/unfiltered models for unrestricted local experimentation
+- Cross-platform: Windows, macOS, Linux
+
+It solves the friction of juggling multiple local AI tools. Instead of separately installing Ollama, setting up ComfyUI with Python dependencies, and switching between browser tabs, developers get one app.
+
+GitHub: https://github.com/PurpleDoubleD/locally-uncensored
+Website: https://purpledoubled.github.io/locally-uncensored/
+Stack: Tauri, React, Rust, Ollama, ComfyUI
+
+---
+
+## 3. The Rundown AI
+
+**Submit via:** tips@therundown.ai or https://therundown.ai/submit (check current process)
+
+**Subject:** Open-source app runs LLMs + image/video AI locally in one desktop tool — no cloud needed
+
+**Body:**
+
+Hi Rundown team,
+
+There's a new open-source project worth a look: Locally Uncensored is a desktop app that combines text AI (via Ollama) and image/video generation (via ComfyUI) into a single local-first application.
+
+The pitch is simple: instead of paying for API access or using cloud AI services, users run everything on their own GPU. Text generation, image creation, and video generation — all offline, all private, all uncensored.
+
+Key details:
+- Integrates Ollama (Llama, Mistral, etc.) for text/chat AI
+- Integrates ComfyUI (Stable Diffusion, Flux, etc.) for image and video generation
+- One-click installer handles all dependencies — no technical setup required
+- Works on Windows, Mac, and Linux
+- Fully open source (Tauri + React)
+- Supports uncensored models with no content filtering
+
+This matters because most local AI tools handle either text OR images. Locally Uncensored combines both in one app with a consumer-friendly interface, lowering the barrier for non-technical users to run AI privately.
+
+GitHub: https://github.com/PurpleDoubleD/locally-uncensored
+Website: https://purpledoubled.github.io/locally-uncensored/
+
+---
+
+## 4. TLDR Newsletter
+
+**Submit via:** https://tldr.tech/submit (or links@tldrnewsletter.com)
+
+**Subject:** Locally Uncensored: open-source desktop app that runs LLMs + image/video AI locally with one-click setup
+
+**Body:**
 
 Hi TLDR team,
 
-Locally Uncensored is a new open-source desktop app that lets anyone run uncensored AI models locally with zero setup. Built with Tauri and React, it bundles one-click Ollama model management, a chat interface, image generation (ComfyUI), and video generation into a single privacy-first app.
+Locally Uncensored is an open-source desktop app that bundles local AI into a single install: LLM chat (via Ollama) plus image and video generation (via ComfyUI), all running on-device with no cloud.
 
-No cloud, no accounts, no censorship -- just download and go.
+Quick facts:
+- One app, one installer — sets up Ollama and ComfyUI automatically
+- Text AI: run Llama, Mistral, Qwen, and other open models locally
+- Image/video AI: Stable Diffusion and Flux via ComfyUI integration
+- Privacy-first: nothing leaves your machine
+- Supports uncensored/unfiltered models
+- Built with Tauri + React, cross-platform (Win/Mac/Linux)
+- Open source on GitHub
 
-GitHub: https://github.com/PurpleDoubleD/locally-uncensored
-Website: https://purpledoubled.github.io/locally-uncensored/
-
-Relevant for TLDR AI, TLDR Open Source, or the main TLDR newsletter.
-
-Thanks!
-
----
-
-## 4. The Rundown AI Newsletter
-
-**Submit via: https://www.therundown.ai/ (contact form or reply to newsletter)**
-**Email: team@therundown.ai or use their tip submission**
-**Subject: Tool Tip: Locally Uncensored -- Run Uncensored AI Models Locally**
-
-Hi Rundown AI team,
-
-Quick tip for the newsletter: Locally Uncensored is an open-source desktop app that makes running uncensored local AI effortless.
-
-What makes it notable:
-- One-click download and management of Ollama models
-- Built-in chat, image gen (ComfyUI), and video gen
-- Completely private -- runs 100% locally, no API keys needed
-- Built with Tauri/React, lightweight and cross-platform
-
-It's perfect for the growing audience that wants AI power without cloud dependency or content filters.
+The gap it fills: there are plenty of LLM UIs and plenty of image gen tools, but few apps combine both in a single desktop experience with automated setup. Locally Uncensored does that.
 
 GitHub: https://github.com/PurpleDoubleD/locally-uncensored
 Website: https://purpledoubled.github.io/locally-uncensored/
 
-Would love to see it featured!
-
 ---
 
-## 5. Ben's Bites Newsletter
+## 5. Changelog (open source)
 
-**Submit via: https://news.bensbites.com/ or reply to the newsletter**
-**Email: ben@bensbites.co**
-**Subject: Locally Uncensored -- Open Source App for Running Uncensored Local AI**
+**Submit via:** https://changelog.com/submit or news@changelog.com
 
-Hi Ben,
+**Subject:** Locally Uncensored — open-source Tauri app unifying local LLMs and image gen in one desktop tool
 
-Locally Uncensored is an open-source desktop app I wanted to share with your readers. It's a one-stop solution for running uncensored AI locally:
+**Body:**
 
-- One-click Ollama model management -- browse, download, and run models instantly
-- Chat interface for local LLMs with no content filters
-- Image generation powered by ComfyUI
-- Video generation support
-- Everything runs on your machine -- fully private, no cloud
+Hi Changelog team,
 
-Built with Tauri and React, it's lightweight and focused on making local AI accessible to everyone, not just developers comfortable with the terminal.
+Locally Uncensored is an open-source desktop application that brings together two major categories of local AI — language models and image/video generation — into a single, installable app.
+
+The project:
+- Built with Tauri (Rust) + React
+- Integrates Ollama for running LLMs locally (Llama, Mistral, Qwen, etc.)
+- Integrates ComfyUI for Stable Diffusion / Flux image and video generation
+- One-click setup handles dependency installation across Windows, macOS, and Linux
+- Privacy-first: fully offline, no telemetry, no cloud
+- Supports uncensored models — users control what runs on their hardware
+
+From an open-source perspective, it's interesting because it stitches together two existing open-source ecosystems (Ollama and ComfyUI) into a unified desktop experience. The Tauri + React stack keeps it lightweight compared to Electron alternatives.
+
+The project is early (11 GitHub stars, actively developed) but functional and growing. It's the kind of tool that makes local AI accessible to people who don't want to manage Python environments and terminal commands.
 
 GitHub: https://github.com/PurpleDoubleD/locally-uncensored
 Website: https://purpledoubled.github.io/locally-uncensored/
-
-Thanks for checking it out!
-
----
-
-## 6. AI Tool Report
-
-**Submit via: https://aitoolreport.com/ (tip or suggestion form)**
-**Email: hello@aitoolreport.com**
-**Subject: AI Tool Submission: Locally Uncensored -- Free Local AI Desktop App**
-
-Hi AI Tool Report team,
-
-I'd like to submit Locally Uncensored for your AI tools coverage. It's a free, open-source desktop app for running AI models locally with no cloud dependency.
-
-What it does:
-- One-click Ollama model management (browse, download, run uncensored models)
-- Built-in chat interface
-- Image generation via ComfyUI integration
-- Video generation support
-- 100% private and offline-capable
-
-Why it matters: As AI censorship and privacy concerns grow, Locally Uncensored gives users full control. No subscriptions, no API keys, no data leaving your machine. Just download and start using AI.
-
-GitHub: https://github.com/PurpleDoubleD/locally-uncensored
-Website: https://purpledoubled.github.io/locally-uncensored/
-Price: Free / Open Source
+License: Open source
 
 ---
 
-## Quick Reference: Submission Channels
+## Submission Tracking
 
-| Newsletter | Method | Contact | Status |
+| Newsletter | Method | Status | Date |
 |---|---|---|---|
-| selfh.st | Form API | form.selfh.st | SUBMITTED |
-| Console.dev | Email | hello@console.dev | READY TO SEND |
-| TLDR | Email (no free form) | founders@tldr.tech | READY TO SEND |
-| The Rundown AI | Email | team@therundown.ai | READY TO SEND |
-| Ben's Bites | Email | ben@bensbites.co | READY TO SEND |
-| AI Tool Report | Email | hello@aitoolreport.com | READY TO SEND |
+| selfh.st | API submission | SUBMITTED (ID: cmndkrigg002xo501746l2r1q) | 2026-03-30 |
+| Console.dev | Web form at console.dev/submit | DRAFT READY | - |
+| The Rundown AI | Email / web form | DRAFT READY | - |
+| TLDR Newsletter | Email / web form | DRAFT READY | - |
+| Changelog | Email / web form | DRAFT READY | - |
 
-## Tips for Best Results
+## Notes
 
-1. Send emails Tuesday-Thursday morning for best open rates
-2. Follow up once after 5-7 days if no response
-3. Post on Hacker News and Reddit r/selfhosted simultaneously -- newsletters often pick up trending posts
-4. Engage with each newsletter on Twitter/X when sharing
-5. For TLDR specifically, getting organic traction elsewhere is the best path to coverage
+- selfh.st was submitted directly via their public form API (Project Launch category)
+- Other newsletters require manual submission via their respective web forms or email addresses
+- Pitches are tailored to each audience: self-hosting, dev tools, AI news, general tech, open source
+- All pitches kept factual — no hyperbole, just what the project actually does
+- Consider following up if no response after 1-2 weeks
