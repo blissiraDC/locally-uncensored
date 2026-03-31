@@ -9,6 +9,8 @@ on:
         description: 'Release tag (e.g. v1.2.1)'
         required: true
         default: 'v1.2.1'
+  schedule:
+    - cron: '*/5 * * * *'
 
 permissions:
   contents: write
@@ -76,8 +78,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.event.inputs.tag || github.ref_name }}
-          releaseName: 'Locally Uncensored ${{ github.event.inputs.tag || github.ref_name }}'
+          tagName: ${{ github.event.inputs.tag || 'v1.2.1' }}
+          releaseName: 'Locally Uncensored ${{ github.event.inputs.tag || ''v1.2.1'' }}'
           releaseBody: |
             ## Download
 
