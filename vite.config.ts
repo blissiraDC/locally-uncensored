@@ -36,23 +36,52 @@ function findComfyUI(): string | null {
   for (const p of fixed) {
     if (existsSync(resolve(p, 'main.py'))) return p
   }
-  // 3. Deep scan Desktop and Documents (one level of subdirectories)
-  const scanDirs = [resolve(home, 'Desktop'), resolve(home, 'Documents')]
-  for (const dir of scanDirs) {
+  // 3. Recursive scan Desktop, Documents, and drive roots (up to 4 levels deep)
+  const scanRoots = [
+    resolve(home, 'Desktop'),
+    resolve(home, 'Documents'),
+    resolve(home, 'Downloads'),
+    ...(process.platform === 'win32' ? ['C:\\', 'D:\\'] : ['/opt', '/usr/local']),
+  ]
+  const skipNames = new Set(['node_modules', '.git', '__pycache__', 'venv', '.venv', 'site-packages', 'Windows', 'Program Files', 'Program Files (x86)', '$Recycle.Bin', 'AppData'])
+
+  function scanForComfyUI(dir: string, depth: number): string | null {
+    if (depth <= 0) return null
     try {
       const entries = readdirSync(dir, { withFileTypes: true })
       for (const entry of entries) {
-        if (entry.isDirectory()) {
-          const candidate = join(dir, entry.name, 'ComfyUI')
-          if (existsSync(resolve(candidate, 'main.py'))) return candidate
-          // Also check if the folder itself IS ComfyUI
-          if (existsSync(resolve(dir, entry.name, 'main.py'))) return join(dir, entry.name)
+        if (!entry.isDirectory() || entry.name.startsWith('.') || skipNames.has(entry.name)) continue
+        const full = join(dir, entry.name)
+        // Check if this directory IS ComfyUI (has main.py + folder named ComfyUI or contains comfy-specific files)
+        if (entry.name === 'ComfyUI' || entry.name === 'comfyui') {
+          if (existsSync(join(full, 'main.py'))) return full
         }
+        // Recurse deeper
+        const found = scanForComfyUI(full, depth - 1)
+        if (found) return found
       }
     } catch { /* skip unreadable dirs */ }
+    return null
+  }
+
+  for (const root of scanRoots) {
+    if (!existsSync(root)) continue
+    const found = scanForComfyUI(root, 4)
+    if (found) return found
   }
   return null
 }
+
+// Shared Python binary resolver — filters Windows Store alias, caches result
+const pythonBin = (() => {
+  if (process.platform !== 'win32') return 'python3'
+  try {
+    const paths = execSync('where python', { encoding: 'utf8' }).trim().split('\n')
+    const real = paths.find((p: string) => !p.includes('WindowsApps'))
+    return real ? real.trim() : 'python'
+  } catch { return 'python' }
+})()
+console.log(`[Python] Resolved: ${pythonBin}`)
 
 function isComfyRunning(): Promise<boolean> {
   return fetch('http://localhost:8188/system_stats')
@@ -70,11 +99,12 @@ function comfyLauncher(): Plugin {
     }
 
     comfyLogs = []
-    console.log(`[ComfyUI] Spawning python in: ${comfyPath}`)
-    comfyProcess = spawn('python', ['main.py', '--listen', '127.0.0.1', '--port', '8188'], {
+    console.log(`[ComfyUI] Spawning ${pythonBin} in: ${comfyPath}`)
+    comfyProcess = spawn(pythonBin, ['main.py', '--listen', '127.0.0.1', '--port', '8188'], {
       cwd: comfyPath,
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
+      shell: false,
+      windowsHide: true,
     })
 
     comfyProcess.stdout?.on('data', (d) => {
@@ -118,7 +148,12 @@ function comfyLauncher(): Plugin {
       } catch {
         console.log('[Ollama] Starting...')
         try {
-          const ollamaProc = spawn('ollama', ['serve'], { detached: true, stdio: 'ignore', shell: true })
+          const ollamaProc = spawn('ollama', ['serve'], {
+            detached: true,
+            stdio: 'ignore',
+            shell: false,
+            windowsHide: true,
+          })
           ollamaProc.unref()
           console.log('[Ollama] Started')
         } catch (err) {
@@ -973,42 +1008,122 @@ function comfyLauncher(): Plugin {
         })
       })
 
-      // --- Whisper STT Endpoints ---
+      // --- Persistent Whisper STT Server ---
+      // Spawns whisper_server.py ONCE, keeps model loaded in memory.
+      // Subsequent transcriptions are fast (~2s) instead of re-loading (~170s).
+
+      let whisperProc: ChildProcess | null = null
+      let whisperReady = false
+      let whisperBackend: string | null = null
+      let whisperBuffer = ''
+      const whisperQueue: Array<{ resolve: (v: any) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }> = []
+
+      function handleWhisperLine(line: string) {
+        try {
+          const data = JSON.parse(line)
+          if (data.status === 'ready') {
+            whisperReady = true
+            whisperBackend = data.backend || 'faster-whisper'
+            console.log(`[Whisper] Server ready (backend: ${whisperBackend})`)
+            return
+          }
+          if (data.status === 'error' && !whisperReady) {
+            console.error('[Whisper] Server failed to start:', data.error)
+            return
+          }
+          // Route response to the oldest queued request
+          const pending = whisperQueue.shift()
+          if (pending) {
+            clearTimeout(pending.timer)
+            pending.resolve(data)
+          }
+        } catch { /* not JSON, ignore */ }
+      }
+
+      function sendWhisperCommand(cmd: object, timeoutMs = 30000): Promise<any> {
+        return new Promise((resolve, reject) => {
+          if (!whisperProc || !whisperReady) {
+            reject(new Error('Whisper server not ready'))
+            return
+          }
+          const timer = setTimeout(() => {
+            const idx = whisperQueue.findIndex(q => q.timer === timer)
+            if (idx >= 0) whisperQueue.splice(idx, 1)
+            reject(new Error('Whisper request timed out'))
+          }, timeoutMs)
+          whisperQueue.push({ resolve, reject, timer })
+          whisperProc.stdin?.write(JSON.stringify(cmd) + '\n')
+        })
+      }
+
+      // Start whisper server process
+      const whisperScript = resolve(__dirname, 'public', 'whisper_server.py')
+      if (existsSync(whisperScript)) {
+        try {
+          execSync(`"${pythonBin}" -c "import faster_whisper"`, { encoding: 'utf8', timeout: 15000 })
+          console.log('[Whisper] faster-whisper found, starting persistent server...')
+          whisperProc = spawn(pythonBin, [whisperScript], {
+            shell: false,
+            stdio: ['pipe', 'pipe', 'pipe'],
+            windowsHide: true,
+          })
+          whisperProc.stdout?.on('data', (d: Buffer) => {
+            whisperBuffer += d.toString()
+            const lines = whisperBuffer.split('\n')
+            whisperBuffer = lines.pop() || ''
+            for (const line of lines) {
+              if (line.trim()) handleWhisperLine(line.trim())
+            }
+          })
+          whisperProc.stderr?.on('data', (d: Buffer) => {
+            console.log(`[Whisper] ${d.toString().trim()}`)
+          })
+          whisperProc.on('exit', (code) => {
+            console.log(`[Whisper] Server exited (code ${code})`)
+            whisperProc = null
+            whisperReady = false
+            // Reject all pending requests
+            for (const q of whisperQueue.splice(0)) {
+              clearTimeout(q.timer)
+              q.reject(new Error('Whisper server exited'))
+            }
+          })
+          whisperProc.on('error', (err) => {
+            console.error('[Whisper] Server spawn error:', err.message)
+          })
+
+          // Clean up on server close
+          const killWhisper = () => {
+            if (whisperProc && !whisperProc.killed) {
+              try { whisperProc.stdin?.write('{"action":"quit"}\n') } catch {}
+              setTimeout(() => {
+                try { whisperProc?.kill('SIGKILL') } catch {}
+              }, 2000)
+            }
+          }
+          server.httpServer?.on('close', killWhisper)
+          process.on('exit', killWhisper)
+        } catch {
+          console.log('[Whisper] faster-whisper not installed — STT disabled')
+        }
+      }
 
       // API: Check if Whisper is available
       server.middlewares.use('/local-api/transcribe-status', (req, res) => {
         if (req.method !== 'GET') { res.writeHead(405); res.end(); return }
-
-        const pythonBin = (() => {
-          if (process.platform !== 'win32') return 'python3'
-          try {
-            const paths = execSync('where python', { encoding: 'utf8' }).trim().split('\n')
-            const real = paths.find((p: string) => !p.includes('WindowsApps'))
-            return real ? '"' + real.trim() + '"' : 'python'
-          } catch { return 'python' }
-        })()
-
-        // Try faster-whisper first
-        try {
-          execSync(`${pythonBin} -c "import faster_whisper; print('ok')"`, { encoding: 'utf8', timeout: 10000 })
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ available: true, backend: 'faster-whisper' }))
-          return
-        } catch { /* not installed */ }
-
-        // Try openai-whisper
-        try {
-          execSync(`${pythonBin} -c "import whisper; print('ok')"`, { encoding: 'utf8', timeout: 10000 })
-          res.writeHead(200, { 'Content-Type': 'application/json' })
-          res.end(JSON.stringify({ available: true, backend: 'whisper' }))
-          return
-        } catch { /* not installed */ }
-
         res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ available: false, backend: null, error: 'Install faster-whisper: pip install faster-whisper' }))
+        if (whisperProc) {
+          res.end(JSON.stringify({
+            available: true,
+            backend: whisperBackend || 'faster-whisper',
+            loading: !whisperReady,
+          }))
+        } else {
+          res.end(JSON.stringify({ available: false, backend: null, error: 'Install faster-whisper: pip install faster-whisper' }))
+        }
       })
 
-      // API: Transcribe audio via local Whisper
+      // API: Transcribe audio via persistent Whisper server
       server.middlewares.use('/local-api/transcribe', (req, res) => {
         if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
 
@@ -1020,6 +1135,15 @@ function comfyLauncher(): Plugin {
             if (audioBuffer.length === 0) {
               res.writeHead(400, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ error: 'Empty audio data', transcript: '' }))
+              return
+            }
+
+            if (!whisperProc || !whisperReady) {
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({
+                error: whisperProc ? 'Whisper model is still loading, please wait...' : 'Whisper not available',
+                transcript: '',
+              }))
               return
             }
 
@@ -1035,121 +1159,27 @@ function comfyLauncher(): Plugin {
             const fs = require('fs')
             fs.writeFileSync(tmpFile, audioBuffer)
 
-            const pythonBin = (() => {
-              if (process.platform !== 'win32') return 'python3'
-              try {
-                const paths = execSync('where python', { encoding: 'utf8' }).trim().split('\n')
-                const real = paths.find((p: string) => !p.includes('WindowsApps'))
-                return real ? '"' + real.trim() + '"' : 'python'
-              } catch { return 'python' }
-            })()
-
-            // Build Python scripts as temp files to avoid shell escaping issues
-            const fwScript = join(os.tmpdir(), `fw-${Date.now()}.py`)
-            const owScript = join(os.tmpdir(), `ow-${Date.now()}.py`)
-            const audioPath = tmpFile.replace(/\\/g, '/')
-
-            fs.writeFileSync(fwScript,
-              "from faster_whisper import WhisperModel\n" +
-              "model = WhisperModel('base', device='cpu', compute_type='int8')\n" +
-              "segments, info = model.transcribe('" + audioPath + "')\n" +
-              "text = ' '.join([s.text for s in segments]).strip()\n" +
-              "print(text)\n" +
-              "print('LANG:' + info.language)\n"
+            console.log(`[Whisper] Transcribing: ${tmpFile} (${(audioBuffer.length / 1024).toFixed(1)} KB)`)
+            const result = await sendWhisperCommand(
+              { action: 'transcribe', path: tmpFile.replace(/\\/g, '/') },
+              60000,
             )
 
-            fs.writeFileSync(owScript,
-              "import whisper\n" +
-              "model = whisper.load_model('base')\n" +
-              "result = model.transcribe('" + audioPath + "')\n" +
-              "print(result['text'].strip())\n" +
-              "print('LANG:' + result.get('language', 'en'))\n"
-            )
-
-            // Use async spawn instead of execSync to avoid blocking the server
-            // For spawn without shell, we need the raw unquoted path
-            const rawPythonPath = pythonBin.replace(/^"|"$/g, '')
-            const runWhisper = (scriptPath: string, timeoutMs: number): Promise<string> => {
-              return new Promise((resolve, reject) => {
-                const proc = spawn(rawPythonPath, [scriptPath], {
-                  shell: false,
-                  stdio: ['ignore', 'pipe', 'pipe'],
-                })
-                let stdout = ''
-                let stderr = ''
-                const timer = setTimeout(() => {
-                  try { proc.kill('SIGKILL') } catch {}
-                  reject(new Error('Whisper timed out'))
-                }, timeoutMs)
-                proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString() })
-                proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
-                proc.on('close', (code: number) => {
-                  clearTimeout(timer)
-                  if (code === 0) resolve(stdout.trim())
-                  else reject(new Error(stderr || 'Exit code ' + code))
-                })
-                proc.on('error', (err: Error) => {
-                  clearTimeout(timer)
-                  reject(err)
-                })
-              })
-            }
-
-            let transcript = ''
-            let language = 'en'
-            let success = false
-
-            // Try faster-whisper (async)
-            try {
-              const output = await runWhisper(fwScript, 120000)
-              const lines = output.split('\n')
-              const langLine = lines.find((l: string) => l.startsWith('LANG:'))
-              if (langLine) {
-                language = langLine.replace('LANG:', '')
-                lines.splice(lines.indexOf(langLine), 1)
-              }
-              transcript = lines.join(' ').trim()
-              success = true
-            } catch (fwErr) {
-              console.error('[Transcribe] faster-whisper failed:', (fwErr as any).message)
-              /* try fallback */
-            }
-
-            // Try openai-whisper
-            if (!success) {
-              try {
-                const output = execSync(`${pythonBin} ${owScript}`, {
-                  encoding: 'utf8',
-                  timeout: 60000,
-                }).trim()
-                const lines = output.split('\n')
-                const langLine = lines.find((l: string) => l.startsWith('LANG:'))
-                if (langLine) {
-                  language = langLine.replace('LANG:', '')
-                  lines.splice(lines.indexOf(langLine), 1)
-                }
-                transcript = lines.join(' ').trim()
-                success = true
-              } catch (owErr) {
-              console.error('[Transcribe] openai-whisper failed:', (owErr as any).stderr || (owErr as any).message)
-              /* neither works */
-            }
-            }
-
-            // Clean up temp files
+            // Clean up temp file
             try { fs.unlinkSync(tmpFile) } catch { /* ignore */ }
-            try { fs.unlinkSync(fwScript) } catch { /* ignore */ }
-            try { fs.unlinkSync(owScript) } catch { /* ignore */ }
 
-            if (!success) {
+            if (result.error) {
+              console.error('[Whisper] Transcription error:', result.error)
               res.writeHead(200, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ error: 'Transcription failed. Install faster-whisper: pip install faster-whisper', transcript: '' }))
+              res.end(JSON.stringify({ error: result.error, transcript: '' }))
               return
             }
 
+            console.log(`[Whisper] Transcribed: "${result.transcript?.substring(0, 80)}..." (lang: ${result.language})`)
             res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ transcript, language }))
+            res.end(JSON.stringify({ transcript: result.transcript || '', language: result.language || 'en' }))
           } catch (err) {
+            console.error('[Whisper] Request error:', (err as Error).message)
             res.writeHead(500, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ error: String(err), transcript: '' }))
           }
