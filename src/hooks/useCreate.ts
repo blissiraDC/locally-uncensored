@@ -41,16 +41,6 @@ export function useCreate() {
     }
   }, [])
 
-  // Auto-refresh models when a ComfyUI model download completes
-  useEffect(() => {
-    const handler = () => {
-      console.log('[useCreate] Model download completed, refreshing model list...')
-      fetchModels()
-    }
-    window.addEventListener('comfyui-model-downloaded', handler)
-    return () => window.removeEventListener('comfyui-model-downloaded', handler)
-  }, [fetchModels])
-
   const checkConnection = useCallback(async () => {
     const ok = await checkComfyConnection()
     setConnected(ok)
@@ -94,6 +84,16 @@ export function useCreate() {
       console.error('[useCreate] Failed to fetch models:', err)
     }
   }, [])
+
+  // Auto-refresh models when a ComfyUI model download completes
+  useEffect(() => {
+    const handler = () => {
+      console.log('[useCreate] Model download completed, refreshing model list...')
+      fetchModels()
+    }
+    window.addEventListener('comfyui-model-downloaded', handler)
+    return () => window.removeEventListener('comfyui-model-downloaded', handler)
+  }, [fetchModels])
 
   const generate = useCallback(async () => {
     const state = useCreateStore.getState()
