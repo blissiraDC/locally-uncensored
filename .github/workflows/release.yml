@@ -25,12 +25,6 @@ jobs:
           - platform: windows-latest
             args: ''
             rust_targets: ''
-          - platform: macos-14
-            args: '--target aarch64-apple-darwin'
-            rust_targets: 'aarch64-apple-darwin'
-          - platform: macos-14
-            args: '--target x86_64-apple-darwin'
-            rust_targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
 
     runs-on: ${{ matrix.platform }}
 

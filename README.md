@@ -51,6 +51,9 @@ Tired of switching between Ollama for chat, ComfyUI for images, and another tool
 | Open Source | ✅ | ✅ | ❌ | ✅ |
 | Portable / No-Install | ✅ | ❌ | ✅ | ❌ |
 | No Docker Required | ✅ | ❌ | ✅ | ✅ |
+| RAG / Document Chat | ✅ | ✅ | ❌ | ❌ |
+| Voice (STT + TTS) | ✅ | ⚠️ | ❌ | ❌ |
+| AI Agents | ✅ | ❌ | ❌ | ❌ |
 | 100% Offline | ✅ | ✅ | ✅ | ✅ |
 
 ---
@@ -67,6 +70,9 @@ Tired of switching between Ollama for chat, ComfyUI for images, and another tool
 - **Dark/Light Mode** — Beautiful glassmorphism UI that actually looks good
 - **100% Local** — Everything runs on your machine, nothing touches the internet
 - **Conversation History** — All chats saved locally in your browser
+- **Document Chat (RAG)** — Upload PDFs, DOCX, or TXT files and chat with your documents. Hybrid search with confidence scores.
+- **Voice Chat** — Talk to your AI with push-to-talk and hear responses with text-to-speech. Sentence-level streaming.
+- **AI Agents** — Give your AI a goal and watch it plan, search the web, read/write files, and execute Python code autonomously.
 
 ## Tech Stack
 
@@ -226,7 +232,7 @@ COMFYUI_PATH=/path/to/your/ComfyUI
 
 ## 🗺️ Roadmap
 
-- [ ] **RAG / Document Chat** — Upload PDFs and chat with your documents
+- [x] **RAG / Document Chat** — Upload PDFs and chat with your documents
 - [ ] **Audio Generation** — Text-to-speech and music generation
 - [ ] **Plugin System** — Extend the app with community plugins
 - [ ] **Multi-User Mode** — Share your local AI server with your household
@@ -258,6 +264,25 @@ src/
 ```
 
 ---
+
+## 🖥️ Platform Support
+
+| Platform | Status | Download |
+|----------|--------|----------|
+| **Windows** (10/11) | ✅ Fully tested | `.exe` / `.msi` |
+| **Linux** (Ubuntu 22.04+, Debian, Fedora) | ✅ Fully tested | `.AppImage` / `.deb` |
+| **macOS** | 🚧 Community testing | Build from source |
+
+> **Note:** We actively test and support Windows and Linux. macOS builds are provided on a best-effort basis — we don't have Mac hardware for testing. macOS users can build from source (see below) and we welcome community feedback and PRs for Mac-specific issues.
+
+### Build from source (all platforms)
+```bash
+git clone https://github.com/PurpleDoubleD/locally-uncensored.git
+cd locally-uncensored
+npm install
+npm run dev          # Development
+npm run tauri build  # Production binary
+```
 
 ## Contributing
 
