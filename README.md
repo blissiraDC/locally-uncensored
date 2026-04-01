@@ -23,11 +23,11 @@ No cloud. No censorship. No data collection. Just you and your AI.
 
 ### 📸 Screenshots
 
-| Chat with Personas | Image & Video Creation | Model Manager |
+| Chat with Personas | Image Generation (Dark) | Image Generation (Light) |
 |:---:|:---:|:---:|
-| ![Chat](docs/screenshots/marketing_03_chat_personas.png) | ![Create](docs/screenshots/marketing_06_create_view.png) | ![Models](docs/screenshots/marketing_07_model_manager.png) |
-| **Light Mode** | **Settings** | **Landing** |
-| ![Light Mode](docs/screenshots/marketing_09_light_mode.png) | ![Settings](docs/screenshots/marketing_08_settings.png) | ![Hero](docs/screenshots/marketing_01_hero.png) |
+| ![Chat](docs/screenshots/chat_personas_dark.jpg) | ![Create Dark](docs/screenshots/create_dark.jpg) | ![Create Light](docs/screenshots/create_light.jpg) |
+| **Model Manager** | | |
+| ![Models](docs/screenshots/model_manager_dark.jpg) | | |
 
 ---
 
