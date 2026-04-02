@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import type { DocumentMeta, TextChunk, VectorSearchResult } from "../types/rag"
+import type { DocumentMeta, TextChunk } from "../types/rag"
+import { saveChunks, loadChunks, deleteChunks } from "../lib/ragDB"
 
 interface RAGState {
   documents: Record<string, DocumentMeta[]>
@@ -12,11 +13,13 @@ interface RAGState {
   lastRetrievedChunks: { chunk: TextChunk; score: number }[]
   contextWarning: string | null
   pullingEmbeddingModel: boolean
+  chunksLoaded: boolean
 
   addDocument: (conversationId: string, meta: DocumentMeta) => void
   removeDocument: (conversationId: string, docId: string) => void
   addChunks: (newChunks: TextChunk[]) => void
   getConversationChunks: (conversationId: string) => TextChunk[]
+  loadChunksFromDB: (conversationId: string) => Promise<void>
   setRagEnabled: (conversationId: string, enabled: boolean) => void
   setEmbeddingModel: (model: string) => void
   setIndexing: (indexing: boolean) => void
@@ -39,6 +42,7 @@ export const useRAGStore = create<RAGState>()(
       lastRetrievedChunks: [],
       contextWarning: null,
       pullingEmbeddingModel: false,
+      chunksLoaded: false,
 
       addDocument: (conversationId, meta) =>
         set((state) => ({
@@ -48,7 +52,11 @@ export const useRAGStore = create<RAGState>()(
           },
         })),
 
-      removeDocument: (conversationId, docId) =>
+      removeDocument: (conversationId, docId) => {
+        // Delete from IndexedDB (fire-and-forget, non-blocking)
+        deleteChunks(docId).catch((err) =>
+          console.error("Failed to delete chunks from IndexedDB:", err)
+        )
         set((state) => ({
           documents: {
             ...state.documents,
@@ -57,17 +65,64 @@ export const useRAGStore = create<RAGState>()(
             ),
           },
           chunks: state.chunks.filter((c) => c.documentId !== docId),
-        })),
+        }))
+      },
 
-      addChunks: (newChunks) =>
+      addChunks: (newChunks) => {
+        // Persist to IndexedDB grouped by documentId
+        const byDoc = new Map<string, TextChunk[]>()
+        for (const chunk of newChunks) {
+          const existing = byDoc.get(chunk.documentId) || []
+          existing.push(chunk)
+          byDoc.set(chunk.documentId, existing)
+        }
+        for (const [docId, chunks] of byDoc) {
+          saveChunks(docId, chunks).catch((err) =>
+            console.error("Failed to save chunks to IndexedDB:", err)
+          )
+        }
+
         set((state) => ({
           chunks: [...state.chunks, ...newChunks],
-        })),
+        }))
+      },
 
       getConversationChunks: (conversationId) => {
         const { documents, chunks } = get()
         const docIds = (documents[conversationId] || []).map((d) => d.id)
         return chunks.filter((c) => docIds.includes(c.documentId))
+      },
+
+      loadChunksFromDB: async (conversationId) => {
+        const { documents, chunks, chunksLoaded: alreadyLoaded } = get()
+        const docs = documents[conversationId] || []
+        if (docs.length === 0) return
+
+        // Only load docs whose chunks aren't already in memory
+        const loadedDocIds = new Set(chunks.map((c) => c.documentId))
+        const missingDocIds = docs
+          .map((d) => d.id)
+          .filter((id) => !loadedDocIds.has(id))
+
+        if (missingDocIds.length === 0) {
+          if (!alreadyLoaded) set({ chunksLoaded: true })
+          return
+        }
+
+        try {
+          const restored = await loadChunks(missingDocIds)
+          if (restored.length > 0) {
+            set((state) => ({
+              chunks: [...state.chunks, ...restored],
+              chunksLoaded: true,
+            }))
+          } else if (!alreadyLoaded) {
+            set({ chunksLoaded: true })
+          }
+        } catch (err) {
+          console.error("Failed to load chunks from IndexedDB:", err)
+          if (!alreadyLoaded) set({ chunksLoaded: true })
+        }
       },
 
       setRagEnabled: (conversationId, enabled) =>
@@ -81,17 +136,22 @@ export const useRAGStore = create<RAGState>()(
 
       setIndexingProgress: (progress) => set({ indexingProgress: progress }),
 
-      clearConversationDocs: (conversationId) =>
-        set((state) => {
-          const docIds = (state.documents[conversationId] || []).map((d) => d.id)
-          return {
-            documents: {
-              ...state.documents,
-              [conversationId]: [],
-            },
-            chunks: state.chunks.filter((c) => !docIds.includes(c.documentId)),
-          }
-        }),
+      clearConversationDocs: (conversationId) => {
+        const docIds = (get().documents[conversationId] || []).map((d) => d.id)
+        // Delete all from IndexedDB
+        for (const docId of docIds) {
+          deleteChunks(docId).catch((err) =>
+            console.error("Failed to delete chunks from IndexedDB:", err)
+          )
+        }
+        set((state) => ({
+          documents: {
+            ...state.documents,
+            [conversationId]: [],
+          },
+          chunks: state.chunks.filter((c) => !docIds.includes(c.documentId)),
+        }))
+      },
 
       setLastRetrievedChunks: (chunks) => set({ lastRetrievedChunks: chunks }),
 

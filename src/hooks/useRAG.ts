@@ -1,26 +1,52 @@
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useRef } from "react"
+import { useShallow } from "zustand/react/shallow"
 import { useRAGStore } from "../stores/ragStore"
 import { indexDocument, retrieveContext } from "../api/rag"
-import { getModelContext, listModels, pullModel } from "../api/ollama"
+import { getModelContext, listModels, pullModel, checkConnection } from "../api/ollama"
 import { useModelStore } from "../stores/modelStore"
 import type { DocumentMeta, RAGContext } from "../types/rag"
 
+const EMPTY_DOCS: DocumentMeta[] = []
+
 export function useRAG(conversationId: string | null) {
-  const documents = useRAGStore((s) =>
-    conversationId ? s.documents[conversationId] || [] : []
+  const {
+    documents,
+    isEnabled,
+    isIndexing,
+    indexingProgress,
+    contextWarning,
+    pullingEmbeddingModel,
+    chunksLoaded,
+  } = useRAGStore(
+    useShallow((s) => ({
+      documents: conversationId ? s.documents[conversationId] ?? EMPTY_DOCS : EMPTY_DOCS,
+      isEnabled: conversationId ? s.ragEnabled[conversationId] ?? false : false,
+      isIndexing: s.isIndexing,
+      indexingProgress: s.indexingProgress,
+      contextWarning: s.contextWarning,
+      pullingEmbeddingModel: s.pullingEmbeddingModel,
+      chunksLoaded: s.chunksLoaded,
+    }))
   )
-  const isEnabled = useRAGStore((s) =>
-    conversationId ? s.ragEnabled[conversationId] ?? false : false
-  )
-  const isIndexing = useRAGStore((s) => s.isIndexing)
-  const indexingProgress = useRAGStore((s) => s.indexingProgress)
-  const contextWarning = useRAGStore((s) => s.contextWarning)
-  const pullingEmbeddingModel = useRAGStore((s) => s.pullingEmbeddingModel)
+
+  // Track which conversations we've already loaded chunks for
+  const loadedRef = useRef<Set<string>>(new Set())
+
+  // Auto-load chunks from IndexedDB when conversation has documents
+  useEffect(() => {
+    if (!conversationId || documents.length === 0) return
+    if (loadedRef.current.has(conversationId)) return
+    loadedRef.current.add(conversationId)
+    useRAGStore.getState().loadChunksFromDB(conversationId)
+  }, [conversationId, documents.length])
 
   // Check context window when RAG is toggled on or documents change
   useEffect(() => {
     if (!isEnabled || !conversationId) {
-      useRAGStore.getState().setContextWarning(null)
+      // Only clear if there's actually a warning set
+      if (useRAGStore.getState().contextWarning !== null) {
+        useRAGStore.getState().setContextWarning(null)
+      }
       return
     }
 
@@ -34,7 +60,7 @@ export function useRAG(conversationId: string | null) {
           useRAGStore.getState().setContextWarning(
             `Your model's context window is only ${ctxLen} tokens. RAG works best with 4096+ tokens. Run: ollama run ${activeModel} /set parameter num_ctx 8192`
           )
-        } else {
+        } else if (useRAGStore.getState().contextWarning !== null) {
           useRAGStore.getState().setContextWarning(null)
         }
       } catch {
@@ -52,6 +78,14 @@ export function useRAG(conversationId: string | null) {
       const { embeddingModel, setIndexing, setIndexingProgress, addDocument, addChunks, setPullingEmbeddingModel } =
         useRAGStore.getState()
 
+      // Pre-flight: check Ollama is reachable
+      const ollamaUp = await checkConnection()
+      if (!ollamaUp) {
+        throw new Error(
+          "Ollama is not running. Please start Ollama first, then try again."
+        )
+      }
+
       try {
         // Check if embedding model exists, auto-pull if missing
         const models = await listModels()
@@ -64,7 +98,9 @@ export function useRAG(conversationId: string | null) {
             `The embedding model "${embeddingModel}" is not installed. Download it now? (~274MB)`
           )
           if (!shouldPull) {
-            throw new Error("Embedding model not available")
+            throw new Error(
+              `Embedding model "${embeddingModel}" is required but not installed.`
+            )
           }
 
           setPullingEmbeddingModel(true)
@@ -76,7 +112,6 @@ export function useRAG(conversationId: string | null) {
               while (true) {
                 const { done, value } = await reader.read()
                 if (done) break
-                // Parse streaming pull progress (for logging)
                 const text = decoder.decode(value, { stream: true })
                 for (const line of text.split("\n").filter(Boolean)) {
                   try {
@@ -95,6 +130,12 @@ export function useRAG(conversationId: string | null) {
         setIndexingProgress({ current: 0, total: 1 })
 
         const { meta, chunks } = await indexDocument(file, embeddingModel)
+
+        if (chunks.length === 0) {
+          throw new Error(
+            "No text could be extracted from this file. The document may be empty or contain only images."
+          )
+        }
 
         addDocument(conversationId, meta)
         addChunks(chunks)
@@ -148,6 +189,7 @@ export function useRAG(conversationId: string | null) {
     indexingProgress,
     contextWarning,
     pullingEmbeddingModel,
+    chunksLoaded,
     uploadDocument,
     removeDocument: removeDoc,
     toggleRAG,

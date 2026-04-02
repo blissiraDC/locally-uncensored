@@ -4,9 +4,15 @@ import { ollamaUrl, localFetch } from "./backend"
 
 export async function extractText(file: File): Promise<string> {
   const ext = file.name.split(".").pop()?.toLowerCase()
-  if (ext === "pdf") return extractTextFromPDF(file)
-  if (ext === "docx") return extractTextFromDOCX(file)
-  return file.text()
+  try {
+    if (ext === "pdf") return await extractTextFromPDF(file)
+    if (ext === "docx") return await extractTextFromDOCX(file)
+    return await file.text()
+  } catch (err) {
+    throw new Error(
+      `Failed to extract text from "${file.name}": ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
 }
 
 async function extractTextFromPDF(file: File): Promise<string> {
@@ -58,12 +64,39 @@ export async function generateEmbeddings(
   texts: string[],
   model = "nomic-embed-text"
 ): Promise<number[][]> {
-  const res = await localFetch(ollamaUrl("/embed"), {
-    method: "POST",
-    body: JSON.stringify({ model, input: texts }),
-  })
-  if (!res.ok) throw new Error("Embedding failed — is the model pulled?")
+  let res: Response
+  try {
+    res = await localFetch(ollamaUrl("/embed"), {
+      method: "POST",
+      body: JSON.stringify({ model, input: texts }),
+    })
+  } catch (err) {
+    throw new Error(
+      `Cannot reach Ollama. Is it running? (${err instanceof Error ? err.message : String(err)})`
+    )
+  }
+
+  if (!res.ok) {
+    let detail = ""
+    try {
+      const body = await res.json()
+      detail = body?.error || ""
+    } catch { /* ignore parse errors */ }
+
+    if (res.status === 404 || detail.includes("not found")) {
+      throw new Error(
+        `Embedding model "${model}" not found. Run: ollama pull ${model}`
+      )
+    }
+    throw new Error(
+      `Embedding failed (HTTP ${res.status}): ${detail || "Unknown error"}`
+    )
+  }
+
   const data = await res.json()
+  if (!data.embeddings || !Array.isArray(data.embeddings)) {
+    throw new Error("Unexpected response from Ollama /embed endpoint")
+  }
   return data.embeddings
 }
 

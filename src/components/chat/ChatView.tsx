@@ -3,11 +3,13 @@ import { AnimatePresence } from 'framer-motion'
 import { useChat } from '../../hooks/useChat'
 import { useChatStore } from '../../stores/chatStore'
 import { useModelStore } from '../../stores/modelStore'
+import { useRAGStore } from '../../stores/ragStore'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
 import { RAGPanel } from './RAGPanel'
 import { PersonaPanel } from '../personas/PersonaPanel'
 import { ModelRecommendation } from '../models/ModelRecommendation'
+import { ErrorBoundary } from '../ui/ErrorBoundary'
 import { Cpu, FileText } from 'lucide-react'
 
 export function ChatView() {
@@ -16,6 +18,14 @@ export function ChatView() {
   const activeModel = useModelStore((s) => s.activeModel)
   const models = useModelStore((s) => s.models)
   const [ragPanelOpen, setRagPanelOpen] = useState(false)
+
+  // Document count badge for RAG button
+  const docCount = useRAGStore((s) =>
+    activeConversationId ? (s.documents[activeConversationId] || []).length : 0
+  )
+  const ragEnabled = useRAGStore((s) =>
+    activeConversationId ? s.ragEnabled[activeConversationId] ?? false : false
+  )
 
   // Check if current conversation has user messages
   const conversation = useChatStore((s) => {
@@ -61,21 +71,36 @@ export function ChatView() {
           <button
             onClick={() => setRagPanelOpen(!ragPanelOpen)}
             className={
-              'p-1.5 rounded-lg transition-colors ' +
-              (ragPanelOpen
+              'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors text-xs ' +
+              (ragPanelOpen || ragEnabled
                 ? 'bg-green-100 dark:bg-green-500/15 text-green-600 dark:text-green-300'
                 : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400')
             }
             title="Document Chat (RAG)"
           >
-            <FileText size={16} />
+            <FileText size={14} />
+            <span className="font-medium">Documents</span>
+            {docCount > 0 && (
+              <span className={
+                'min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[0.6rem] font-bold ' +
+                (ragEnabled
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-200 dark:bg-white/15 text-gray-600 dark:text-gray-300')
+              }>
+                {docCount}
+              </span>
+            )}
           </button>
         </div>
         <MessageList isGenerating={isGenerating} />
         <ChatInput onSend={sendMessage} onStop={stopGeneration} isGenerating={isGenerating} />
       </div>
       <AnimatePresence>
-        {ragPanelOpen && <RAGPanel conversationId={activeConversationId} />}
+        {ragPanelOpen && (
+          <ErrorBoundary fallbackClassName="w-[280px] shrink-0 h-full border-l border-white/5 bg-[#2a2a2a] flex flex-col items-center justify-center p-6 gap-3">
+            <RAGPanel conversationId={activeConversationId} />
+          </ErrorBoundary>
+        )}
       </AnimatePresence>
     </div>
   )

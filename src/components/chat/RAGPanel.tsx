@@ -15,6 +15,7 @@ import {
   Download,
   MessageSquarePlus,
 } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useRAG } from '../../hooks/useRAG'
 import { useRAGStore } from '../../stores/ragStore'
 
@@ -74,12 +75,17 @@ function RAGPanelInner({ conversationId }: { conversationId: string }) {
   const indexingProgress = rag.indexingProgress ?? null
   const contextWarning = rag.contextWarning ?? null
   const pullingEmbeddingModel = rag.pullingEmbeddingModel ?? false
+  const chunksLoaded = rag.chunksLoaded ?? false
   const uploadDocument = rag.uploadDocument
   const removeDocument = rag.removeDocument
   const toggleRAG = rag.toggleRAG
 
-  const embeddingModelReactive = useRAGStore((s) => s.embeddingModel)
-  const lastRetrievedChunksReactive = useRAGStore((s) => s.lastRetrievedChunks)
+  const { embeddingModelReactive, lastRetrievedChunksReactive } = useRAGStore(
+    useShallow((s) => ({
+      embeddingModelReactive: s.embeddingModel,
+      lastRetrievedChunksReactive: s.lastRetrievedChunks,
+    }))
+  )
 
   const [isDragging, setIsDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -100,7 +106,8 @@ function RAGPanelInner({ conversationId }: { conversationId: string }) {
         try {
           await uploadDocument(file)
         } catch (err) {
-          setError('Failed to index ' + file.name)
+          const msg = err instanceof Error ? err.message : String(err)
+          setError(msg)
         }
       }
     },
@@ -221,6 +228,27 @@ function RAGPanelInner({ conversationId }: { conversationId: string }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* RAG explanation when disabled */}
+      {!isEnabled && documents.length === 0 && (
+        <div className="px-3 pt-2">
+          <div className="p-2 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+            <p className="text-[0.6rem] text-gray-500 dark:text-gray-400 leading-relaxed">
+              Upload documents and enable the toggle to chat with your files. The AI will use document content to answer your questions.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Loading chunks from IndexedDB */}
+      {documents.length > 0 && !chunksLoaded && (
+        <div className="px-3 py-2">
+          <div className="flex items-center gap-1.5 p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <Loader2 size={12} className="text-blue-400 animate-spin" />
+            <span className="text-[0.6rem] text-blue-400">Loading indexed documents...</span>
+          </div>
+        </div>
+      )}
 
       {/* Drop zone */}
       <div className="px-3 pt-3 pb-1">

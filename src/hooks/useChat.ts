@@ -61,6 +61,9 @@ export function useChat() {
     const ragEnabled = ragState.ragEnabled[convId] ?? false
 
     if (ragEnabled) {
+      // Ensure chunks are loaded from IndexedDB before retrieval
+      await ragState.loadChunksFromDB(convId)
+
       const chunks = ragState.getConversationChunks(convId)
       if (chunks.length > 0) {
         try {
