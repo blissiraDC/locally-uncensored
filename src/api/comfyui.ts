@@ -115,8 +115,8 @@ export async function getSystemVRAM(): Promise<number | null> {
     const res = await localFetch(comfyuiUrl('/system_stats'))
     if (!res.ok) return null
     const data = await res.json()
-    // ComfyUI returns devices[].vram_total in bytes
-    const devices = data?.system?.devices ?? data?.devices ?? []
+    // ComfyUI returns top-level devices[].vram_total in bytes
+    const devices = data?.devices ?? []
     if (devices.length > 0) {
       const vramBytes = devices[0]?.vram_total ?? 0
       cachedVRAM = Math.round(vramBytes / (1024 * 1024 * 1024)) // bytes → GB

@@ -120,57 +120,70 @@ export const COMPONENT_REGISTRY: Record<ModelType, ComponentRequirements> = {
 // ─── Ollama Text Models ───
 
 export async function fetchAbliteratedModels(): Promise<DiscoverModel[]> {
+  return searchOllamaModels('abliterated')
+}
+
+/** Search Ollama registry — works in both Tauri and dev mode */
+export async function searchOllamaModels(query: string): Promise<DiscoverModel[]> {
   try {
-    // In Tauri production mode, we can't proxy to ollama.com — fall back to curated list
-    const { isTauri } = await import("./backend")
+    let html: string
+
+    const { isTauri, fetchExternal } = await import("./backend")
     if (isTauri()) {
-      return getCuratedTextModels()
+      // In Tauri: use fetchExternal to bypass CORS
+      html = await fetchExternal(`https://ollama.com/search?q=${encodeURIComponent(query)}&p=1`)
+    } else {
+      // In dev: use proxy
+      const res = await fetch(`/ollama-search?q=${encodeURIComponent(query)}&p=1`)
+      html = await res.text()
     }
 
-    const res = await fetch('/ollama-search?q=abliterated&p=1')
-    const html = await res.text()
-
-    const models: DiscoverModel[] = []
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(html, 'text/html')
-
-    const items = doc.querySelectorAll('[x-test-search-response-title]')
-    items.forEach((item) => {
-      const container = item.closest('a') || item.parentElement?.closest('a')
-      const name = item.textContent?.trim() || ''
-      const href = container?.getAttribute('href') || ''
-
-      const parent = item.closest('div')?.parentElement
-      const spans = parent?.querySelectorAll('span') || []
-      let pulls = ''
-      let updated = ''
-
-      spans.forEach((span) => {
-        const text = span.textContent?.trim() || ''
-        if (text.includes('Pull') || text.includes('K') || text.includes('M')) {
-          if (!pulls) pulls = text
-        }
-        if (text.includes('ago') || text.includes('month') || text.includes('week') || text.includes('day')) {
-          updated = text
-        }
-      })
-
-      if (name && href) {
-        models.push({
-          name: href.startsWith('/') ? href.slice(1) : name,
-          description: '',
-          pulls,
-          tags: [],
-          updated,
-        })
-      }
-    })
-
+    const models = parseOllamaSearchHTML(html)
     if (models.length === 0) return getCuratedTextModels()
     return models
   } catch {
     return getCuratedTextModels()
   }
+}
+
+function parseOllamaSearchHTML(html: string): DiscoverModel[] {
+  const models: DiscoverModel[] = []
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+
+  const items = doc.querySelectorAll('[x-test-search-response-title]')
+  items.forEach((item) => {
+    const container = item.closest('a') || item.parentElement?.closest('a')
+    const name = item.textContent?.trim() || ''
+    const href = container?.getAttribute('href') || ''
+
+    const parent = item.closest('div')?.parentElement
+    const spans = parent?.querySelectorAll('span') || []
+    let pulls = ''
+    let updated = ''
+
+    spans.forEach((span) => {
+      const text = span.textContent?.trim() || ''
+      if (text.includes('Pull') || text.includes('K') || text.includes('M')) {
+        if (!pulls) pulls = text
+      }
+      if (text.includes('ago') || text.includes('month') || text.includes('week') || text.includes('day')) {
+        updated = text
+      }
+    })
+
+    if (name && href) {
+      models.push({
+        name: href.startsWith('/') ? href.slice(1) : name,
+        description: '',
+        pulls,
+        tags: [],
+        updated,
+      })
+    }
+  })
+
+  return models
 }
 
 function getCuratedTextModels(): DiscoverModel[] {

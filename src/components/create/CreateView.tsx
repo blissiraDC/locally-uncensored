@@ -321,8 +321,15 @@ export function CreateView() {
                       {e.downloadUrl && e.downloadFilename && e.downloadSubfolder && (
                         <button
                           onClick={async () => {
-                            await startModelDownload(e.downloadUrl!, e.downloadSubfolder!, e.downloadFilename!)
-                            useUIStore.getState().setView('models')
+                            try {
+                              const result = await startModelDownload(e.downloadUrl!, e.downloadSubfolder!, e.downloadFilename!)
+                              console.log('[CreateView] Download started:', result)
+                              // Small delay to let backend register the download before switching views
+                              await new Promise(r => setTimeout(r, 500))
+                              useUIStore.getState().setView('models')
+                            } catch (err) {
+                              console.error('[CreateView] Download failed:', err)
+                            }
                           }}
                           className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[9px] font-medium transition-colors"
                         >

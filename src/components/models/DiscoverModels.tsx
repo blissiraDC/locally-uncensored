@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Download, RefreshCw, ExternalLink, Search, Info, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { Pause, Play, X } from 'lucide-react'
 import {
-  fetchAbliteratedModels, getImageBundles, getVideoBundles,
+  fetchAbliteratedModels, searchOllamaModels, getImageBundles, getVideoBundles,
   startModelDownload, getDownloadProgress, searchCivitaiModels,
   pauseDownload, cancelDownload, resumeDownload,
   type DiscoverModel, type DownloadProgress, type ModelBundle, type CivitAIModelResult,
@@ -81,8 +81,18 @@ export function DiscoverModels({ category }: Props) {
     ? allModels.filter((m) => m.name.toLowerCase().includes(search.toLowerCase()) || m.description.toLowerCase().includes(search.toLowerCase()))
     : allModels
 
-  // Parse VRAM requirement string to min GB number for sorting
+  // Parse VRAM requirement string to minimum GB needed
+  // "6-8 GB" → 8 (need at least the upper bound)
+  // "12+ GB" → 13 (+ means MORE than that number)
+  // "8 GB" → 8
   const parseVRAM = (s: string): number => {
+    if (s.includes('+')) {
+      const match = s.match(/(\d+)\+/)
+      return match ? parseInt(match[1]) + 2 : 99 // "12+" means realistically 14+ GB needed
+    }
+    // Range like "6-8 GB" → take the upper number
+    const range = s.match(/(\d+)\s*-\s*(\d+)/)
+    if (range) return parseInt(range[2])
     const match = s.match(/(\d+)/)
     return match ? parseInt(match[1]) : 99
   }
@@ -198,9 +208,19 @@ export function DiscoverModels({ category }: Props) {
     ? (pullProgress.completed / pullProgress.total) * 100
     : 0
 
+  const handleOllamaSearch = async () => {
+    if (!search.trim() || !isText) return
+    setLoading(true)
+    try {
+      const results = await searchOllamaModels(search.trim())
+      setTextModels(results)
+    } catch { /* keep existing */ }
+    setLoading(false)
+  }
+
   const title = isText ? 'Uncensored Text Models' : isImage ? 'Image Models (ComfyUI)' : 'Video Models (ComfyUI)'
   const subtitle = isText
-    ? 'Abliterated models from the Ollama registry. Click to install.'
+    ? 'Search the Ollama registry or browse curated abliterated models.'
     : isImage
       ? 'Complete packages — each bundle includes everything you need to generate images.'
       : 'Complete packages — each bundle includes Model + VAE + CLIP for video generation.'
@@ -223,7 +243,8 @@ export function DiscoverModels({ category }: Props) {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Filter models..."
+          onKeyDown={(e) => { if (e.key === 'Enter' && isText) handleOllamaSearch() }}
+          placeholder={isText ? 'Search Ollama registry... (Enter to search)' : 'Filter models...'}
           className="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-gray-400 dark:focus:border-white/30"
         />
       </div>
