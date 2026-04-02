@@ -6,7 +6,12 @@ mod python;
 mod state;
 
 use state::AppState;
-use tauri::Manager;
+use tauri::{
+    Manager,
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
+    image::Image,
+};
 
 fn main() {
     let app_state = AppState::new();
@@ -58,15 +63,61 @@ fn main() {
                 window.open_devtools();
             }
 
+            // ─── System Tray ───
+            let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show, &quit])?;
+
+            let tray_icon = Image::from_path("icons/icon.png")
+                .or_else(|_| Image::from_path("icons/32x32.png"))
+                .unwrap_or_else(|_| Image::from_bytes(include_bytes!("../icons/32x32.png")).expect("embedded icon"));
+
+            TrayIconBuilder::new()
+                .icon(tray_icon)
+                .tooltip("Locally Uncensored")
+                .menu(&menu)
+                .on_menu_event(|app, event| {
+                    match event.id().as_ref() {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let tauri::tray::TrayIconEvent::DoubleClick { .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            // ─── Close → hide to tray instead of quit ───
+            if let Some(window) = app.get_webview_window("main") {
+                let w = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = w.hide();
+                    }
+                });
+            }
+
+            // ─── Auto-start services ───
             let state = app.state::<AppState>();
 
-            // Auto-start Ollama
             commands::process::auto_start_ollama(&state);
-
-            // Auto-start ComfyUI
             commands::process::auto_start_comfyui(&state);
 
-            // Start Whisper server in background thread (model loading can take minutes)
             let handle = app.handle().clone();
             let python_bin = state.python_bin.clone();
             let whisper = state.whisper.clone();
