@@ -1,15 +1,103 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { Image, Video, WifiOff, Loader2, AlertTriangle, RefreshCw, Settings, FolderOpen, HardDriveDownload, CheckCircle2, XCircle, Download } from 'lucide-react'
+import { Image, Video, WifiOff, Loader2, AlertTriangle, RefreshCw, Settings, FolderOpen, HardDriveDownload, CheckCircle2, XCircle, Download, Pause, Play, X as XIcon } from 'lucide-react'
 import { backendCall } from '../../api/backend'
 import { freeMemory } from '../../api/comfyui'
-import { startModelDownload } from '../../api/discover'
+import { startModelDownload, getDownloadProgress, pauseDownload, cancelDownload, resumeDownload } from '../../api/discover'
 import { useCreate } from '../../hooks/useCreate'
 import { useCreateStore } from '../../stores/createStore'
-import { useUIStore } from '../../stores/uiStore'
 import { PromptInput } from './PromptInput'
 import { ParamPanel } from './ParamPanel'
 import { OutputDisplay } from './OutputDisplay'
 import { Gallery } from './Gallery'
+
+/** Inline download button — stays on Create view, shows progress with pause/cancel */
+function DownloadButton({ url, subfolder, filename, onDone }: { url: string; subfolder: string; filename: string; onDone: () => void }) {
+  const [state, setState] = useState<'idle' | 'downloading' | 'paused' | 'done' | 'error'>('idle')
+  const [pct, setPct] = useState(0)
+  const [speed, setSpeed] = useState('')
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const startPolling = () => {
+    if (pollRef.current) clearInterval(pollRef.current)
+    pollRef.current = setInterval(async () => {
+      try {
+        const prog = await getDownloadProgress()
+        const d = prog[filename]
+        if (!d) return
+        if (d.total > 0) setPct(Math.round(d.progress / d.total * 100))
+        if (d.speed > 0) setSpeed((d.speed / 1024 / 1024).toFixed(1) + ' MB/s')
+        if (d.status === 'complete') {
+          if (pollRef.current) clearInterval(pollRef.current)
+          setState('done')
+          window.dispatchEvent(new CustomEvent('comfyui-model-downloaded'))
+          onDone()
+        } else if (d.status === 'error') {
+          if (pollRef.current) clearInterval(pollRef.current)
+          setState('error')
+        } else if (d.status === 'paused') {
+          setState('paused')
+        } else {
+          setState('downloading')
+        }
+      } catch { /* keep polling */ }
+    }, 1500)
+  }
+
+  const handleStart = async () => {
+    setState('downloading')
+    try {
+      await startModelDownload(url, subfolder, filename)
+      startPolling()
+    } catch { setState('error') }
+  }
+
+  const handlePause = async () => {
+    await pauseDownload(filename)
+    setState('paused')
+  }
+
+  const handleResume = async () => {
+    await resumeDownload(filename, url, subfolder)
+    setState('downloading')
+    startPolling()
+  }
+
+  const handleCancel = async () => {
+    if (pollRef.current) clearInterval(pollRef.current)
+    await cancelDownload(filename)
+    setState('idle')
+    setPct(0)
+  }
+
+  useEffect(() => { return () => { if (pollRef.current) clearInterval(pollRef.current) } }, [])
+
+  if (state === 'done') return <span className="text-[9px] text-emerald-400 font-medium px-2 py-0.5">Installed</span>
+  if (state === 'error') return (
+    <button onClick={handleStart} className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[9px] font-medium transition-colors">
+      <Download size={9} /> Retry
+    </button>
+  )
+  if (state === 'downloading') return (
+    <span className="shrink-0 flex items-center gap-1 text-[9px] font-medium">
+      <span className="text-blue-300 min-w-[32px]">{pct}%</span>
+      {speed && <span className="text-gray-500">{speed}</span>}
+      <button onClick={handlePause} className="p-0.5 rounded hover:bg-white/10 text-yellow-400" title="Pause"><Pause size={9} /></button>
+      <button onClick={handleCancel} className="p-0.5 rounded hover:bg-white/10 text-red-400" title="Cancel"><XIcon size={9} /></button>
+    </span>
+  )
+  if (state === 'paused') return (
+    <span className="shrink-0 flex items-center gap-1 text-[9px] font-medium">
+      <span className="text-yellow-400">{pct}% paused</span>
+      <button onClick={handleResume} className="p-0.5 rounded hover:bg-white/10 text-emerald-400" title="Resume"><Play size={9} /></button>
+      <button onClick={handleCancel} className="p-0.5 rounded hover:bg-white/10 text-red-400" title="Cancel"><XIcon size={9} /></button>
+    </span>
+  )
+  return (
+    <button onClick={handleStart} className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[9px] font-medium transition-colors">
+      <Download size={9} /> Download
+    </button>
+  )
+}
 
 interface ComfyStatus {
   running: boolean
@@ -319,23 +407,7 @@ export function CreateView() {
                       <XCircle size={11} className="shrink-0" />
                       <span className="flex-1">{e.message}</span>
                       {e.downloadUrl && e.downloadFilename && e.downloadSubfolder && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              const result = await startModelDownload(e.downloadUrl!, e.downloadSubfolder!, e.downloadFilename!)
-                              console.log('[CreateView] Download started:', result)
-                              // Small delay to let backend register the download before switching views
-                              await new Promise(r => setTimeout(r, 500))
-                              useUIStore.getState().setView('models')
-                            } catch (err) {
-                              console.error('[CreateView] Download failed:', err)
-                            }
-                          }}
-                          className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[9px] font-medium transition-colors"
-                        >
-                          <Download size={9} />
-                          Download
-                        </button>
+                        <DownloadButton url={e.downloadUrl!} subfolder={e.downloadSubfolder!} filename={e.downloadFilename!} onDone={() => runPreflight()} />
                       )}
                     </div>
                   ))}

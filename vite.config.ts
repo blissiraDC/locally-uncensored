@@ -316,12 +316,12 @@ function comfyLauncher(): Plugin {
       const activeDownloads = new Map<string, { progress: number; total: number; speed: number; filename: string; status: string; error?: string }>()
 
       function downloadFile(url: string, destPath: string, id: string): Promise<void> {
-        return new Promise((resolve, reject) => {
+        return new Promise((promiseResolve, promiseReject) => {
           const filename = basename(destPath)
           activeDownloads.set(id, { progress: 0, total: 0, speed: 0, filename, status: 'connecting' })
 
           const doRequest = (requestUrl: string, redirectCount = 0) => {
-            if (redirectCount > 5) { reject(new Error('Too many redirects')); return }
+            if (redirectCount > 5) { promiseReject(new Error('Too many redirects')); return }
             const proto = requestUrl.startsWith('https') ? https : http
             proto.get(requestUrl, { headers: { 'User-Agent': 'LocallyUncensored/1.1' } }, (response) => {
               if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
@@ -330,7 +330,7 @@ function comfyLauncher(): Plugin {
               }
               if (response.statusCode !== 200) {
                 activeDownloads.set(id, { ...activeDownloads.get(id)!, status: 'error', error: `HTTP ${response.statusCode}` })
-                reject(new Error(`HTTP ${response.statusCode}`))
+                promiseReject(new Error(`HTTP ${response.statusCode}`))
                 return
               }
 
@@ -339,7 +339,7 @@ function comfyLauncher(): Plugin {
               let lastTime = Date.now()
               let lastBytes = 0
 
-              const dir = resolve(destPath, '..')
+              const dir = dirname(destPath)
               if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
               const file = createWriteStream(destPath)
 
@@ -362,15 +362,15 @@ function comfyLauncher(): Plugin {
                 file.close()
                 activeDownloads.set(id, { progress: total || downloaded, total: total || downloaded, speed: 0, filename, status: 'complete' })
                 console.log(`[Download] Complete: ${filename}`)
-                resolve()
+                promiseResolve()
               })
               file.on('error', (err) => {
                 activeDownloads.set(id, { ...activeDownloads.get(id)!, status: 'error', error: err.message })
-                reject(err)
+                promiseReject(err)
               })
             }).on('error', (err) => {
               activeDownloads.set(id, { ...activeDownloads.get(id)!, status: 'error', error: err.message })
-              reject(err)
+              promiseReject(err)
             })
           }
           doRequest(url)
