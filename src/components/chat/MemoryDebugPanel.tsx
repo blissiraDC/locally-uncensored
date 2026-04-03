@@ -68,14 +68,14 @@ function MemoryDebugPopover({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="w-[400px] max-h-[60vh] bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+        className="w-[400px] max-h-[60vh] bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 dark:border-white/[0.06]">
           <div className="flex items-center gap-2">
             <Brain size={12} className="text-purple-400" />
-            <span className="text-[0.65rem] font-semibold text-gray-300">Active Memories ({entries.length})</span>
+            <span className="text-[0.65rem] font-semibold text-gray-700 dark:text-gray-300">Active Memories ({entries.length})</span>
           </div>
           <button onClick={onClose} className="p-0.5 rounded hover:bg-white/10 text-gray-500">
             <X size={12} />

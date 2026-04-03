@@ -14,12 +14,11 @@ import { ErrorBoundary } from '../ui/ErrorBoundary'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { FEATURE_FLAGS } from '../../lib/constants'
 import { isAgentCompatible } from '../../lib/model-compatibility'
-import { FileText, Bot, User, ChevronDown, Download, GitCompareArrows, Trophy } from 'lucide-react'
+import { FileText, Bot, User, ChevronDown, Download, GitCompareArrows } from 'lucide-react'
 import { TokenCounter } from './TokenCounter'
 import { MemoryDebugToggle } from './MemoryDebugPanel'
 import { ABCompare } from './ABCompare'
 import { useCompareStore } from '../../stores/compareStore'
-import { useUIStore } from '../../stores/uiStore'
 import { exportConversation } from '../../lib/chat-export'
 
 export function ChatView() {
@@ -65,29 +64,9 @@ export function ChatView() {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.2 }}
           >
-            <img src="/LU-monogram-bw.png" alt="" width={32} height={32} className="dark:invert-0 invert opacity-20 mb-3" />
+            <img src="/LU-monogram-bw.png" alt="" width={38} height={38} className="dark:invert-0 invert opacity-20 mb-3" />
             <h1 className="text-[0.8rem] font-semibold text-gray-400 mb-0.5 tracking-wide">LUncensored</h1>
             <p className="text-[0.6rem] text-gray-600">No filters, no limits.</p>
-
-            {/* Quick action CTAs */}
-            {models.length > 0 && activeModel && (
-              <div className="flex items-center gap-2 mt-4">
-                <button
-                  onClick={() => setComparing(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20 text-[0.6rem] text-gray-400 hover:text-gray-200 transition-colors"
-                >
-                  <GitCompareArrows size={12} />
-                  Compare Models
-                </button>
-                <button
-                  onClick={() => useUIStore.getState().setView('models')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20 text-[0.6rem] text-gray-400 hover:text-gray-200 transition-colors"
-                >
-                  <Trophy size={12} />
-                  Benchmark
-                </button>
-              </div>
-            )}
 
             {models.length === 0 && <div className="mt-4"><ModelRecommendation /></div>}
             {models.length > 0 && !activeModel && (
@@ -124,7 +103,7 @@ export function ChatView() {
                   {exportOpen && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setExportOpen(false)} />
-                      <div className="absolute right-0 top-full mt-1 z-50 w-36 rounded-lg bg-[#1a1a1a] border border-white/10 shadow-xl py-1">
+                      <div className="absolute right-0 top-full mt-1 z-50 w-36 rounded-lg bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-xl py-1">
                         {(['markdown', 'json'] as const).map(fmt => (
                           <button
                             key={fmt}
@@ -133,7 +112,7 @@ export function ChatView() {
                               if (conv) exportConversation(conv, fmt)
                               setExportOpen(false)
                             }}
-                            className="w-full text-left px-3 py-1.5 text-[0.65rem] text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors"
+                            className="w-full text-left px-3 py-1.5 text-[0.65rem] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
                           >
                             Export as .{fmt === 'markdown' ? 'md' : fmt}
                           </button>
@@ -156,7 +135,7 @@ export function ChatView() {
                   {personaOpen && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setPersonaOpen(false)} />
-                      <div className="absolute right-0 top-full mt-1 z-50 w-48 max-h-[250px] overflow-y-auto scrollbar-thin rounded-lg bg-[#1a1a1a] border border-white/10 shadow-xl py-1">
+                      <div className="absolute right-0 top-full mt-1 z-50 w-48 max-h-[250px] overflow-y-auto scrollbar-thin rounded-lg bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-xl py-1">
                         {/* Active persona pinned at top */}
                         {activePersona && (
                           <div className="px-2 pb-1 mb-1 border-b border-white/[0.06]">
@@ -171,7 +150,7 @@ export function ChatView() {
                           <button
                             key={p.id}
                             onClick={() => { setActivePersona(p.id); setPersonaOpen(false) }}
-                            className="w-full text-left px-3 py-1.5 text-[0.65rem] text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors"
+                            className="w-full text-left px-3 py-1.5 text-[0.65rem] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
                           >
                             {p.name}
                           </button>

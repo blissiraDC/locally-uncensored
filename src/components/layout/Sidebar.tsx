@@ -43,7 +43,7 @@ export function Sidebar() {
     <AnimatePresence>
       {sidebarOpen && (
         <motion.aside
-          className="w-56 h-full border-r border-white/[0.04] bg-[#0a0a0a] flex flex-col z-20 overflow-hidden"
+          className="w-56 h-full border-r border-gray-200 dark:border-white/[0.04] bg-gray-50 dark:bg-[#0a0a0a] flex flex-col z-20 overflow-hidden"
           initial={{ width: 0, opacity: 0 }}
           animate={{ width: 224, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
@@ -53,7 +53,7 @@ export function Sidebar() {
           <div className="px-2 pt-2 pb-1 space-y-1.5">
             <button
               onClick={handleNewChat}
-              className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[0.7rem] text-gray-400 hover:text-white hover:bg-white/[0.05] transition-all"
+              className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[0.7rem] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/[0.05] transition-all"
             >
               <Plus size={13} />
               <span>New Chat</span>
@@ -66,7 +66,7 @@ export function Sidebar() {
                 placeholder="Search..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-6 pr-2 py-1 rounded-md bg-transparent border border-white/[0.04] text-[0.65rem] text-gray-300 placeholder-gray-600 focus:outline-none focus:border-white/10"
+                className="w-full pl-6 pr-2 py-1 rounded-md bg-transparent border border-gray-200 dark:border-white/[0.04] text-[0.65rem] text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-gray-400 dark:focus:border-white/10"
               />
             </div>
           </div>
@@ -78,8 +78,8 @@ export function Sidebar() {
                 key={conv.id}
                 className={`group flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer transition-all ${
                   conv.id === activeConversationId
-                    ? 'bg-white/[0.06] text-white'
-                    : 'text-gray-400 hover:bg-white/[0.03] hover:text-gray-200'
+                    ? 'bg-gray-200 dark:bg-white/[0.06] text-gray-900 dark:text-white'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.03] hover:text-gray-800 dark:hover:text-gray-200'
                 }`}
                 onClick={() => {
                   setActiveConversation(conv.id)
