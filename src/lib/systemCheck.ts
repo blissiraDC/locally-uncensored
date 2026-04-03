@@ -97,6 +97,12 @@ export function getRecommendations(tier: SystemTier): ModelRecommendation[] {
                     reason: 'Fits your system well — needs little VRAM',
                 },
                 {
+                    name: 'gemma4:e2b',
+                    label: 'Gemma 4 E2B',
+                    description: 'Vision + native tools',
+                    reason: '2.3B model with vision and tool calling. Apache 2.0.',
+                },
+                {
                     name: 'mannix/llama3.1-8b-abliterated:q5_K_M',
                     label: 'Llama 3.1 8B',
                     description: 'Fast all-rounder',
@@ -110,6 +116,12 @@ export function getRecommendations(tier: SystemTier): ModelRecommendation[] {
                     label: 'Llama 3.1 8B',
                     description: 'Fast & reliable',
                     reason: 'Perfect for your system — recommended as a starting point',
+                },
+                {
+                    name: 'gemma4:e4b',
+                    label: 'Gemma 4 E4B',
+                    description: 'Vision + native tools',
+                    reason: 'Native tool calling + vision. 128K context. Apache 2.0.',
                 },
                 {
                     name: 'huihui_ai/qwen3-abliterated:8b',
@@ -126,6 +138,12 @@ export function getRecommendations(tier: SystemTier): ModelRecommendation[] {
             ]
         case 'high':
             return [
+                {
+                    name: 'gemma4:26b',
+                    label: 'Gemma 4 26B MoE',
+                    description: '26B brain, runs like 4B',
+                    reason: 'Mixture of Experts — only 3.8B active params. Vision + tools. 256K context.',
+                },
                 {
                     name: 'richardyoung/qwen3-14b-abliterated:q4_K_M',
                     label: 'Qwen3 14B',

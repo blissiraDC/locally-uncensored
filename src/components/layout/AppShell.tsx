@@ -11,6 +11,8 @@ import { useUIStore } from '../../stores/uiStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useProviderStore } from '../../stores/providerStore'
 import { detectLocalBackends, type DetectedBackend } from '../../lib/backend-detector'
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
+import { ShortcutsModal } from './ShortcutsModal'
 
 export function AppShell() {
   const { currentView } = useUIStore()
@@ -19,6 +21,8 @@ export function AppShell() {
 
   const [detectedBackends, setDetectedBackends] = useState<DetectedBackend[]>([])
   const [showSelector, setShowSelector] = useState(false)
+
+  useKeyboardShortcuts()
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', settings.theme === 'dark')
@@ -82,6 +86,7 @@ export function AppShell() {
         backends={detectedBackends}
         onClose={() => setShowSelector(false)}
       />
+      <ShortcutsModal />
     </div>
   )
 }

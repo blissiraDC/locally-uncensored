@@ -1,3 +1,5 @@
+export type SearchProvider = 'auto' | 'brave' | 'tavily'
+
 export interface Settings {
   apiEndpoint: string
   temperature: number
@@ -6,6 +8,9 @@ export interface Settings {
   maxTokens: number
   theme: 'light' | 'dark'
   onboardingDone: boolean
+  searchProvider: SearchProvider
+  braveApiKey: string
+  tavilyApiKey: string
 }
 
 export interface Persona {

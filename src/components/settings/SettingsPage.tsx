@@ -247,6 +247,54 @@ export function SettingsPage() {
           </Section>
         )}
 
+        {/* ── Search Provider ────────────────────────── */}
+        {FEATURE_FLAGS.AGENT_MODE && (
+          <Section title="Search Provider">
+            <div className="space-y-3">
+              <div>
+                <span className="text-[0.6rem] text-gray-500 block mb-1">Provider for Agent web_search</span>
+                <div className="flex gap-1.5">
+                  {(['auto', 'brave', 'tavily'] as const).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => updateSettings({ searchProvider: p })}
+                      className={`px-2.5 py-1 rounded-md text-[0.6rem] font-medium transition-all ${
+                        settings.searchProvider === p
+                          ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm border border-gray-200 dark:border-white/15'
+                          : 'text-gray-500 hover:text-gray-700 dark:hover:text-white bg-gray-100 dark:bg-white/5'
+                      }`}
+                    >
+                      {p === 'auto' ? 'Auto (SearXNG > DDG)' : p === 'brave' ? 'Brave Search' : 'Tavily'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-[0.6rem] text-gray-500 block mb-1">Brave Search API Key</label>
+                <input
+                  type="password"
+                  value={settings.braveApiKey}
+                  onChange={(e) => updateSettings({ braveApiKey: e.target.value })}
+                  placeholder="BSA-..."
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-[0.65rem] text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-gray-400 dark:focus:border-white/25"
+                />
+                <span className="text-[0.5rem] text-gray-500 mt-0.5 block">Free tier: 2000 queries/month. Get key at brave.com/search/api</span>
+              </div>
+              <div>
+                <label className="text-[0.6rem] text-gray-500 block mb-1">Tavily API Key</label>
+                <input
+                  type="password"
+                  value={settings.tavilyApiKey}
+                  onChange={(e) => updateSettings({ tavilyApiKey: e.target.value })}
+                  placeholder="tvly-..."
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-[0.65rem] text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-gray-400 dark:focus:border-white/25"
+                />
+                <span className="text-[0.5rem] text-gray-500 mt-0.5 block">AI-optimized search. Free tier: 1000 queries/month. Get key at tavily.com</span>
+              </div>
+            </div>
+          </Section>
+        )}
+
         {/* ── Memory ─────────────────────────────────── */}
         {FEATURE_FLAGS.AGENT_MODE && (
           <Section title="Agent Memory">

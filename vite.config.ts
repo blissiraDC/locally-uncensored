@@ -975,14 +975,14 @@ function comfyLauncher(): Plugin {
         })()
       })
 
-      // API: Multi-tier web search (SearXNG > DDG Instant Answer API > Wikipedia)
+      // API: Multi-tier web search (Brave/Tavily > SearXNG > DDG > Wikipedia)
       server.middlewares.use('/local-api/web-search', (req, res) => {
         if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
         let body = ''
         req.on('data', (c: any) => { body += c })
         req.on('end', () => {
           try {
-            const { query, count } = JSON.parse(body)
+            const { query, count, provider, braveApiKey, tavilyApiKey } = JSON.parse(body)
             if (!query) {
               res.writeHead(400, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ error: 'Missing query parameter' }))
@@ -1108,6 +1108,67 @@ function comfyLauncher(): Plugin {
               })
             }
 
+            // Tier: Brave Search API (needs API key)
+            const tryBrave = (): Promise<{ title: string; url: string; snippet: string }[]> => {
+              if (!braveApiKey) return Promise.reject(new Error('No Brave API key'))
+              const braveUrl = 'https://api.search.brave.com/res/v1/web/search?q=' + encodeURIComponent(query) + '&count=' + maxResults
+              return new Promise((resolve, reject) => {
+                const httpReq = https.get(braveUrl, {
+                  headers: { 'Accept': 'application/json', 'Accept-Encoding': 'gzip', 'X-Subscription-Token': braveApiKey },
+                  timeout: 8000,
+                }, (response) => {
+                  if (response.statusCode !== 200) { response.resume(); reject(new Error('Brave HTTP ' + response.statusCode)); return }
+                  let data = ''
+                  response.on('data', (chunk: Buffer) => { data += chunk.toString() })
+                  response.on('end', () => {
+                    try {
+                      const parsed = JSON.parse(data)
+                      const results = (parsed.web?.results || []).slice(0, maxResults).map((r: any) => ({
+                        title: r.title || '', url: r.url || '', snippet: r.description || '',
+                      }))
+                      if (results.length === 0) throw new Error('Brave returned no results')
+                      console.log('[WebSearch] Brave returned ' + results.length + ' results')
+                      resolve(results)
+                    } catch (e) { reject(e) }
+                  })
+                })
+                httpReq.on('error', reject)
+                httpReq.on('timeout', () => { httpReq.destroy(); reject(new Error('Brave timeout')) })
+              })
+            }
+
+            // Tier: Tavily Search API (needs API key, optimized for AI agents)
+            const tryTavily = (): Promise<{ title: string; url: string; snippet: string }[]> => {
+              if (!tavilyApiKey) return Promise.reject(new Error('No Tavily API key'))
+              return new Promise((resolve, reject) => {
+                const postData = JSON.stringify({ api_key: tavilyApiKey, query, max_results: maxResults, search_depth: 'basic' })
+                const httpReq = https.request({
+                  hostname: 'api.tavily.com', path: '/search', method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
+                  timeout: 10000,
+                }, (response) => {
+                  if (response.statusCode !== 200) { response.resume(); reject(new Error('Tavily HTTP ' + response.statusCode)); return }
+                  let data = ''
+                  response.on('data', (chunk: Buffer) => { data += chunk.toString() })
+                  response.on('end', () => {
+                    try {
+                      const parsed = JSON.parse(data)
+                      const results = (parsed.results || []).slice(0, maxResults).map((r: any) => ({
+                        title: r.title || '', url: r.url || '', snippet: r.content || '',
+                      }))
+                      if (results.length === 0) throw new Error('Tavily returned no results')
+                      console.log('[WebSearch] Tavily returned ' + results.length + ' results')
+                      resolve(results)
+                    } catch (e) { reject(e) }
+                  })
+                })
+                httpReq.on('error', reject)
+                httpReq.on('timeout', () => { httpReq.destroy(); reject(new Error('Tavily timeout')) })
+                httpReq.write(postData)
+                httpReq.end()
+              })
+            }
+
             // Tier 3: Wikipedia API (always works)
             const tryWikipedia = (): Promise<{ title: string; url: string; snippet: string }[]> => {
               const wikiUrl = 'https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(query) + '&format=json&srlimit=' + maxResults + '&utf8=1'
@@ -1124,10 +1185,18 @@ function comfyLauncher(): Plugin {
               })
             }
 
-            // Execute tiers in order
-            trySearXNG()
-              .catch(() => tryDDGHTML())
-              .catch(() => tryWikipedia())
+            // Execute tiers based on provider setting
+            const searchChain = (): Promise<{ title: string; url: string; snippet: string }[]> => {
+              if (provider === 'brave') return tryBrave().catch(() => trySearXNG()).catch(() => tryDDGHTML()).catch(() => tryWikipedia())
+              if (provider === 'tavily') return tryTavily().catch(() => trySearXNG()).catch(() => tryDDGHTML()).catch(() => tryWikipedia())
+              // 'auto': SearXNG > Brave (if key) > Tavily (if key) > DDG > Wikipedia
+              return trySearXNG()
+                .catch(() => braveApiKey ? tryBrave() : Promise.reject(new Error('no brave key')))
+                .catch(() => tavilyApiKey ? tryTavily() : Promise.reject(new Error('no tavily key')))
+                .catch(() => tryDDGHTML())
+                .catch(() => tryWikipedia())
+            }
+            searchChain()
               .then((results) => {
                 res.writeHead(200, { 'Content-Type': 'application/json' })
                 res.end(JSON.stringify({ results }))

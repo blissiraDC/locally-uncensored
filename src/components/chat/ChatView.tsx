@@ -14,15 +14,21 @@ import { ErrorBoundary } from '../ui/ErrorBoundary'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { FEATURE_FLAGS } from '../../lib/constants'
 import { isAgentCompatible } from '../../lib/model-compatibility'
-import { FileText, Bot, User, ChevronDown } from 'lucide-react'
+import { FileText, Bot, User, ChevronDown, Download, GitCompareArrows } from 'lucide-react'
+import { TokenCounter } from './TokenCounter'
+import { ABCompare } from './ABCompare'
+import { useCompareStore } from '../../stores/compareStore'
+import { exportConversation } from '../../lib/chat-export'
 
 export function ChatView() {
   const { sendMessage, stopGeneration, isGenerating, isLoadingModel, pendingApproval, approveToolCall, rejectToolCall } = useChat()
   const activeConversationId = useChatStore((s) => s.activeConversationId)
+  const conversations = useChatStore((s) => s.conversations)
   const activeModel = useModelStore((s) => s.activeModel)
   const models = useModelStore((s) => s.models)
   const [ragPanelOpen, setRagPanelOpen] = useState(false)
   const [personaOpen, setPersonaOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
   const { getActivePersona, setActivePersona } = useSettingsStore()
   const activePersona = getActivePersona()
   const allPersonas = useSettingsStore((s) => s.personas)
@@ -36,6 +42,13 @@ export function ChatView() {
   const isAgentActive = useAgentModeStore((s) =>
     activeConversationId ? s.agentModeActive[activeConversationId] ?? false : false
   )
+  const isComparing = useCompareStore((s) => s.isComparing)
+  const setComparing = useCompareStore((s) => s.setComparing)
+
+  // A/B Compare mode takes over the entire view
+  if (isComparing) {
+    return <ABCompare />
+  }
 
   return (
     <div className="h-full flex flex-col min-w-0">
@@ -69,8 +82,42 @@ export function ChatView() {
             transition={{ duration: 0.25, ease: 'easeOut' }}
           >
             <div className="flex-1 flex flex-col min-w-0">
-              {/* Top bar: Documents + Agent Mode */}
+              {/* Top bar: Token Counter + Documents + Agent Mode */}
               <div className="flex items-center justify-end gap-2 px-3 pt-1">
+                {/* Token Counter */}
+                <TokenCounter />
+
+                {/* Export */}
+                <div className="relative">
+                  <button
+                    onClick={() => setExportOpen(!exportOpen)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-gray-300 dark:border-white/15 hover:border-gray-400 dark:hover:border-white/25 text-gray-500 dark:text-gray-400 transition-colors text-xs"
+                    title="Export chat"
+                  >
+                    <Download size={13} />
+                  </button>
+                  {exportOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setExportOpen(false)} />
+                      <div className="absolute right-0 top-full mt-1 z-50 w-36 rounded-lg bg-[#1a1a1a] border border-white/10 shadow-xl py-1">
+                        {(['markdown', 'json'] as const).map(fmt => (
+                          <button
+                            key={fmt}
+                            onClick={() => {
+                              const conv = conversations.find(c => c.id === activeConversationId)
+                              if (conv) exportConversation(conv, fmt)
+                              setExportOpen(false)
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-[0.65rem] text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors"
+                          >
+                            Export as .{fmt === 'markdown' ? 'md' : fmt}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 {/* Persona selector */}
                 <div className="relative">
                   <button
@@ -130,6 +177,16 @@ export function ChatView() {
                       {docCount}
                     </span>
                   )}
+                </button>
+
+                {/* A/B Compare */}
+                <button
+                  onClick={() => setComparing(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-gray-300 dark:border-white/15 hover:border-gray-400 dark:hover:border-white/25 text-gray-500 dark:text-gray-400 transition-colors text-xs"
+                  title="A/B Compare — test two models side by side"
+                >
+                  <GitCompareArrows size={13} />
+                  <span className="font-medium">A/B</span>
                 </button>
 
                 {/* Agent Mode (Beta) */}

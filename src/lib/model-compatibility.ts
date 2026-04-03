@@ -19,7 +19,7 @@ const AGENT_COMPATIBLE = [
   'phi-4', 'phi4',
   'deepseek-v2.5', 'deepseek-v3',
   'glm4', 'glm-4',
-  'gemma3',
+  'gemma3', 'gemma4',
   'nemotron',
 ]
 
@@ -71,6 +71,7 @@ export function getRecommendedAgentModels(): RecommendedModel[] {
   return [
     { name: 'hermes3:8b', label: 'Hermes 3 8B', reason: 'Uncensored + native tool calling. THE agent model.', hot: true, provider: 'ollama' },
     { name: 'hermes3:70b', label: 'Hermes 3 70B', reason: 'Maximum power uncensored agent. Needs 48GB+.', hot: true, provider: 'ollama' },
+    { name: 'gemma4:26b', label: 'Gemma 4 26B MoE', reason: '26B brain, runs like 4B. Native tools + vision. Apache 2.0.', hot: true, provider: 'ollama' },
     { name: 'qwen2.5:7b', label: 'Qwen 2.5 7B', reason: 'Fast, reliable tool calling', provider: 'ollama' },
     { name: 'llama3.1:8b', label: 'Llama 3.1 8B', reason: 'Proven tool calling all-rounder', provider: 'ollama' },
     { name: 'openai::gpt-4o', label: 'GPT-4o', reason: 'Cloud: powerful tool calling', provider: 'openai' },

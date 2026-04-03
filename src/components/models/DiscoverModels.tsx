@@ -4,6 +4,7 @@ import { Download, RefreshCw, ExternalLink, Search, Info, CheckCircle, XCircle, 
 import { Pause, Play, X } from 'lucide-react'
 import {
   fetchAbliteratedModels, searchOllamaModels, getImageBundles, getVideoBundles,
+  getUncensoredTextModels, getMainstreamTextModels,
   startModelDownload, getDownloadProgress, searchCivitaiModels,
   pauseDownload, cancelDownload, resumeDownload,
   type DiscoverModel, type DownloadProgress, type ModelBundle, type CivitAIModelResult,
@@ -88,6 +89,105 @@ function VariantPullButton({ model, pullModel, isPulling, isInstalled }: {
   )
 }
 
+function ModelDiscoverCard({ model, index, isText, getModelDownloadState, pullModel, isPulling, isInstalled, handleDownload }: {
+  model: DiscoverModel
+  index: number
+  isText: boolean
+  getModelDownloadState: (m: DiscoverModel) => DownloadProgress | null
+  pullModel: (name: string) => void
+  isPulling: boolean
+  isInstalled: (name: string) => boolean
+  handleDownload: (m: DiscoverModel) => void
+}) {
+  const dlState = getModelDownloadState(model)
+  const isDownloading = dlState?.status === 'downloading' || dlState?.status === 'connecting'
+  const isComplete = dlState?.status === 'complete'
+  const isError = dlState?.status === 'error'
+  const canDirectDownload = !!model.downloadUrl && !!model.filename && !!model.subfolder
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.03 }}
+    >
+      <GlassCard className="p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate flex items-center gap-1.5">
+              {model.hot && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-500 font-bold border border-orange-500/30 shrink-0">HOT</span>}
+              {model.agent && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-green-500/15 text-green-500 font-bold border border-green-500/30 shrink-0">AGENT</span>}
+              <span className="truncate">{model.name}</span>
+            </h3>
+            {model.description && (
+              <p className="text-xs text-gray-500 mt-0.5">{model.description}</p>
+            )}
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              {model.tags.map((tag) => (
+                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400">
+                  {tag}
+                </span>
+              ))}
+              {model.sizeGB && (
+                <span className="text-[10px] text-gray-400">{model.sizeGB} GB</span>
+              )}
+              {model.pulls && (
+                <span className="text-[10px] text-gray-500">{model.pulls}</span>
+              )}
+            </div>
+
+            {isDownloading && dlState && (
+              <div className="mt-2 space-y-1">
+                <ProgressBar progress={dlState.total > 0 ? (dlState.progress / dlState.total) * 100 : 0} />
+                <div className="flex items-center justify-between text-[10px] text-gray-400">
+                  <span>{dlState.total > 0 ? `${formatBytes(dlState.progress)} / ${formatBytes(dlState.total)}` : 'Connecting...'}</span>
+                  {dlState.speed > 0 && <span>{formatBytes(dlState.speed)}/s</span>}
+                </div>
+              </div>
+            )}
+            {isError && dlState && (
+              <div className="mt-1 flex items-center gap-1 text-[10px] text-red-500">
+                <XCircle size={10} /> {dlState.error || 'Download failed'}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {isText ? (
+              <VariantPullButton model={model} pullModel={pullModel} isPulling={isPulling} isInstalled={isInstalled} />
+            ) : (
+              <>
+                {isComplete ? (
+                  <span className="flex items-center gap-1 text-xs text-green-500 px-2 py-1">
+                    <CheckCircle size={12} /> Installed
+                  </span>
+                ) : isDownloading ? (
+                  <span className="p-2 text-gray-400">
+                    <Loader2 size={14} className="animate-spin" />
+                  </span>
+                ) : canDirectDownload ? (
+                  <button
+                    onClick={() => handleDownload(model)}
+                    className="p-2 rounded-lg bg-green-100 dark:bg-green-500/15 hover:bg-green-200 dark:hover:bg-green-500/25 text-green-700 dark:text-green-400 transition-all"
+                    title={`Download ${model.sizeGB ? model.sizeGB + ' GB' : ''} to ComfyUI`}
+                  >
+                    <Download size={14} />
+                  </button>
+                ) : null}
+                {model.url && (
+                  <a href={model.url} target="_blank" rel="noopener noreferrer" className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 transition-all" title="View on website">
+                    <ExternalLink size={14} />
+                  </a>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </GlassCard>
+    </motion.div>
+  )
+}
+
 export function DiscoverModels({ category }: Props) {
   const [textModels, setTextModels] = useState<DiscoverModel[]>([])
   const [civitaiResults, setCivitaiResults] = useState<CivitAIModelResult[]>([])
@@ -98,6 +198,7 @@ export function DiscoverModels({ category }: Props) {
   const [downloads, setDownloads] = useState<Record<string, DownloadProgress>>({})
   const [downloadMeta, setDownloadMeta] = useState<Record<string, { url: string; subfolder: string }>>({})
   const [systemVRAM, setSystemVRAM] = useState<number | null>(null)
+  const [textSubTab, setTextSubTab] = useState<'uncensored' | 'mainstream'>('uncensored')
   const { pullModel, isPulling, pullProgress, models: installedModels } = useModels()
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -288,9 +389,19 @@ export function DiscoverModels({ category }: Props) {
     setLoading(false)
   }
 
-  const title = isText ? 'Uncensored Text Models' : isImage ? 'Image Models (ComfyUI)' : 'Video Models (ComfyUI)'
+  const uncensoredModels = isText ? getUncensoredTextModels() : []
+  const mainstreamModels = isText ? getMainstreamTextModels() : []
+
+  const filteredUncensored = search
+    ? uncensoredModels.filter((m) => m.name.toLowerCase().includes(search.toLowerCase()) || m.description.toLowerCase().includes(search.toLowerCase()))
+    : uncensoredModels
+  const filteredMainstream = search
+    ? mainstreamModels.filter((m) => m.name.toLowerCase().includes(search.toLowerCase()) || m.description.toLowerCase().includes(search.toLowerCase()))
+    : mainstreamModels
+
+  const title = isText ? 'Discover LUncensored' : isImage ? 'Image Models (ComfyUI)' : 'Video Models (ComfyUI)'
   const subtitle = isText
-    ? 'Search the Ollama registry or browse curated abliterated models.'
+    ? 'Search the Ollama registry or browse curated models.'
     : isImage
       ? 'Complete packages — each bundle includes everything you need to generate images.'
       : 'Complete packages — each bundle includes Model + VAE + CLIP for video generation.'
@@ -580,113 +691,79 @@ export function DiscoverModels({ category }: Props) {
         </GlassCard>
       )}
 
-      {loading ? (
-        <div className="text-center py-8 text-gray-500">Loading models...</div>
-      ) : !isVideo && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {filtered.map((model, i) => {
-            const dlState = getModelDownloadState(model)
-            const isDownloading = dlState?.status === 'downloading' || dlState?.status === 'connecting'
-            const isComplete = dlState?.status === 'complete'
-            const isError = dlState?.status === 'error'
-            const canDirectDownload = !!model.downloadUrl && !!model.filename && !!model.subfolder
-
-            return (
-              <motion.div
-                key={model.name}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03 }}
-              >
-                <GlassCard className="p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate flex items-center gap-1.5">
-                        {model.hot && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-500 font-bold border border-orange-500/30 shrink-0">HOT</span>}
-                        {model.agent && <span className="text-[0.55rem] px-1.5 py-0.5 rounded bg-green-500/15 text-green-500 font-bold border border-green-500/30 shrink-0">AGENT</span>}
-                        <span className="truncate">{model.name}</span>
-                      </h3>
-                      {model.description && (
-                        <p className="text-xs text-gray-500 mt-0.5">{model.description}</p>
-                      )}
-                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                        {model.tags.map((tag) => (
-                          <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400">
-                            {tag}
-                          </span>
-                        ))}
-                        {model.sizeGB && (
-                          <span className="text-[10px] text-gray-400">{model.sizeGB} GB</span>
-                        )}
-                        {model.pulls && (
-                          <span className="text-[10px] text-gray-500">{model.pulls}</span>
-                        )}
-                      </div>
-
-                      {/* Download progress inline */}
-                      {isDownloading && dlState && (
-                        <div className="mt-2 space-y-1">
-                          <ProgressBar progress={dlState.total > 0 ? (dlState.progress / dlState.total) * 100 : 0} />
-                          <div className="flex items-center justify-between text-[10px] text-gray-400">
-                            <span>{dlState.total > 0 ? `${formatBytes(dlState.progress)} / ${formatBytes(dlState.total)}` : 'Connecting...'}</span>
-                            {dlState.speed > 0 && <span>{formatBytes(dlState.speed)}/s</span>}
-                          </div>
-                        </div>
-                      )}
-                      {isError && dlState && (
-                        <div className="mt-1 flex items-center gap-1 text-[10px] text-red-500">
-                          <XCircle size={10} /> {dlState.error || 'Download failed'}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      {isText ? (
-                        // Ollama: variant selector for multi-size models
-                        <VariantPullButton model={model} pullModel={pullModel} isPulling={isPulling} isInstalled={isInstalled} />
-                      ) : (
-                        // ComfyUI models
-                        <>
-                          {isComplete ? (
-                            <span className="flex items-center gap-1 text-xs text-green-500 px-2 py-1">
-                              <CheckCircle size={12} /> Installed
-                            </span>
-                          ) : isDownloading ? (
-                            <span className="p-2 text-gray-400">
-                              <Loader2 size={14} className="animate-spin" />
-                            </span>
-                          ) : canDirectDownload ? (
-                            <button
-                              onClick={() => handleDownload(model)}
-                              className="p-2 rounded-lg bg-green-100 dark:bg-green-500/15 hover:bg-green-200 dark:hover:bg-green-500/25 text-green-700 dark:text-green-400 transition-all"
-                              title={`Download ${model.sizeGB ? model.sizeGB + ' GB' : ''} to ComfyUI`}
-                            >
-                              <Download size={14} />
-                            </button>
-                          ) : null}
-                          {model.url && (
-                            <a
-                              href={model.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 transition-all"
-                              title="View on website"
-                            >
-                              <ExternalLink size={14} />
-                            </a>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </GlassCard>
-              </motion.div>
-            )
-          })}
+      {/* Sub-tabs for text: Uncensored / Mainstream — section header style, clickable */}
+      {isText && (
+        <div className="flex gap-4 mb-4">
+          <button
+            onClick={() => setTextSubTab('uncensored')}
+            className={`flex items-center gap-2 transition-all ${
+              textSubTab === 'uncensored' ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+            }`}
+          >
+            <div className={`w-1 h-5 rounded-full ${textSubTab === 'uncensored' ? 'bg-red-500' : 'bg-red-500/50'}`} />
+            <span className="text-[0.75rem] font-semibold text-gray-900 dark:text-white uppercase tracking-wider">Uncensored</span>
+            <span className="text-[0.55rem] text-gray-500">No filters, no limits</span>
+          </button>
+          <button
+            onClick={() => setTextSubTab('mainstream')}
+            className={`flex items-center gap-2 transition-all ${
+              textSubTab === 'mainstream' ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+            }`}
+          >
+            <div className={`w-1 h-5 rounded-full ${textSubTab === 'mainstream' ? 'bg-blue-500' : 'bg-blue-500/50'}`} />
+            <span className="text-[0.75rem] font-semibold text-gray-900 dark:text-white uppercase tracking-wider">Mainstream</span>
+            <span className="text-[0.55rem] text-gray-500">Tool calling + vision</span>
+          </button>
         </div>
       )}
 
-      {!loading && filtered.length === 0 && filteredBundles.length === 0 && (
+      {loading ? (
+        <div className="text-center py-8 text-gray-500">Loading models...</div>
+      ) : isText ? (
+        <>
+          {/* Active sub-tab content */}
+          {textSubTab === 'uncensored' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {filteredUncensored.map((model, i) => (
+                <ModelDiscoverCard key={model.name} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPulling={isPulling} isInstalled={isInstalled} handleDownload={handleDownload} />
+              ))}
+              {filteredUncensored.length === 0 && (
+                <p className="text-center text-gray-500 py-4 col-span-2">No uncensored models match your search</p>
+              )}
+            </div>
+          )}
+          {textSubTab === 'mainstream' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {filteredMainstream.map((model, i) => (
+                <ModelDiscoverCard key={model.name} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPulling={isPulling} isInstalled={isInstalled} handleDownload={handleDownload} />
+              ))}
+              {filteredMainstream.length === 0 && (
+                <p className="text-center text-gray-500 py-4 col-span-2">No mainstream models match your search</p>
+              )}
+            </div>
+          )}
+
+          {/* Search Results (only when searching, show extra results not in curated lists) */}
+          {search && filtered.filter(m => !uncensoredModels.some(u => u.name === m.name) && !mainstreamModels.some(u => u.name === m.name)).length > 0 && (
+            <div className="space-y-3 mt-6">
+              <h3 className="text-[0.7rem] font-semibold text-gray-500 uppercase tracking-wider">Search Results</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {filtered.filter(m => !uncensoredModels.some(u => u.name === m.name) && !mainstreamModels.some(u => u.name === m.name)).map((model, i) => (
+                  <ModelDiscoverCard key={model.name} model={model} index={i} isText={isText} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPulling={isPulling} isInstalled={isInstalled} handleDownload={handleDownload} />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      ) : !isVideo && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {filtered.map((model, i) => (
+            <ModelDiscoverCard key={model.name} model={model} index={i} isText={false} getModelDownloadState={getModelDownloadState} pullModel={pullModel} isPulling={isPulling} isInstalled={isInstalled} handleDownload={handleDownload} />
+          ))}
+        </div>
+      )}
+
+      {!loading && filtered.length === 0 && filteredBundles.length === 0 && filteredUncensored.length === 0 && filteredMainstream.length === 0 && (
         <p className="text-center text-gray-500 py-4">No models found</p>
       )}
     </div>

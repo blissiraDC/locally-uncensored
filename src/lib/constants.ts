@@ -13,6 +13,9 @@ export const DEFAULT_SETTINGS: Settings = {
   maxTokens: 0,
   theme: 'dark',
   onboardingDone: false,
+  searchProvider: 'auto',
+  braveApiKey: '',
+  tavilyApiKey: '',
 }
 
 export const BUILT_IN_PERSONAS: Persona[] = [

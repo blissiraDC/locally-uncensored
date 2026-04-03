@@ -7,6 +7,7 @@ import { useProviderStore } from '../../stores/providerStore'
 import { ModelCard } from './ModelCard'
 import { PullModelDialog } from './PullModelDialog'
 import { DiscoverModels } from './DiscoverModels'
+import { BenchmarkLeaderboard } from './ModelBenchmark'
 import { Modal } from '../ui/Modal'
 import { GlowButton } from '../ui/GlowButton'
 import { showModel } from '../../api/ollama'
@@ -162,7 +163,7 @@ export function ModelManager() {
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white'
             }`}
           >
-            Discover Uncensored
+            Discover LUncensored
           </button>
         </div>
 
@@ -212,6 +213,8 @@ export function ModelManager() {
               ))}
             </div>
 
+            <BenchmarkLeaderboard />
+
             {filteredModels.length === 0 && (
               <div className="text-center py-10">
                 <p className="text-[0.7rem] text-gray-500 mb-3">
@@ -223,7 +226,7 @@ export function ModelManager() {
                   onClick={() => setTab('discover')}
                   className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[0.65rem] text-gray-300 hover:bg-white/10 transition-colors"
                 >
-                  Discover uncensored models
+                  Discover models
                 </button>
               </div>
             )}

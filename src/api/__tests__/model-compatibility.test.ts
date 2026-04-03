@@ -38,6 +38,14 @@ describe('isAgentCompatible', () => {
       expect(isAgentCompatible('mistral-small:22b')).toBe(true)
     })
 
+    it('gemma4 models are compatible (native tool calling)', () => {
+      expect(isAgentCompatible('gemma4:e2b')).toBe(true)
+      expect(isAgentCompatible('gemma4:e4b')).toBe(true)
+      expect(isAgentCompatible('gemma4:26b')).toBe(true)
+      expect(isAgentCompatible('gemma4:31b')).toBe(true)
+      expect(isAgentCompatible('gemma4:26b-a4b-it-q4_K_M')).toBe(true)
+    })
+
     it('other compatible models', () => {
       expect(isAgentCompatible('command-r:35b')).toBe(true)
       expect(isAgentCompatible('phi-4:14b')).toBe(true)
@@ -93,6 +101,8 @@ describe('getToolCallingStrategy', () => {
     expect(getToolCallingStrategy('hermes3:8b')).toBe('native')
     expect(getToolCallingStrategy('qwen2.5:7b')).toBe('native')
     expect(getToolCallingStrategy('llama3.1:8b')).toBe('native')
+    expect(getToolCallingStrategy('gemma4:26b')).toBe('native')
+    expect(getToolCallingStrategy('gemma4:e4b')).toBe('native')
   })
 
   it('Ollama abliterated models use hermes_xml', () => {
@@ -133,6 +143,14 @@ describe('getRecommendedAgentModels', () => {
     const hermes = models.find(m => m.name.includes('hermes3'))
     expect(hermes).toBeDefined()
     expect(hermes!.hot).toBe(true)
+  })
+
+  it('gemma4 26b MoE is in recommended models', () => {
+    const models = getRecommendedAgentModels()
+    const gemma4 = models.find(m => m.name.includes('gemma4'))
+    expect(gemma4).toBeDefined()
+    expect(gemma4!.hot).toBe(true)
+    expect(gemma4!.provider).toBe('ollama')
   })
 
   it('all recommended models are actually compatible', () => {

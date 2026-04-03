@@ -279,9 +279,15 @@ export async function executeTool(
     }
 
     case "web_search": {
+      // Pass search provider config from settings
+      const { useSettingsStore } = await import('../stores/settingsStore')
+      const searchSettings = useSettingsStore.getState().settings
       const data = await backendCall("web_search", {
         query: args.query,
         count: args.maxResults || 5,
+        provider: searchSettings.searchProvider || 'auto',
+        braveApiKey: searchSettings.braveApiKey || '',
+        tavilyApiKey: searchSettings.tavilyApiKey || '',
       });
       if (Array.isArray(data.results)) {
         return data.results

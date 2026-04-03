@@ -44,11 +44,15 @@ Tired of switching between Ollama for chat, ComfyUI for images, and another tool
 | Feature | Locally Uncensored | Open WebUI | LM Studio | SillyTavern |
 |---------|:-:|:-:|:-:|:-:|
 | AI Chat | ✅ | ✅ | ✅ | ✅ |
+| **Multi-Provider** (Ollama + Cloud) | **✅** | ✅ | ✅ | ❌ |
 | **Agent Mode (Tool Calling)** | **✅** | ❌ | ❌ | ❌ |
+| **Model A/B Compare** | **✅** | ❌ | ❌ | ❌ |
+| **Local Benchmark** | **✅** | ❌ | ❌ | ❌ |
 | Image Generation | ✅ | ❌ | ❌ | ❌ |
 | Video Generation | ✅ | ❌ | ❌ | ❌ |
 | Uncensored by Default | ✅ | ❌ | ❌ | ⚠️ |
 | Memory System | ✅ | ❌ | ❌ | ❌ |
+| LaTeX / Math Rendering | ✅ | ✅ | ❌ | ❌ |
 | One-Click Setup | ✅ | ❌ (Docker) | ✅ | ❌ (Node.js) |
 | 25+ Built-in Personas | ✅ | ❌ | ❌ | ⚠️ (manual) |
 | RAG / Document Chat | ✅ | ✅ | ❌ | ❌ |
@@ -61,18 +65,26 @@ Tired of switching between Ollama for chat, ComfyUI for images, and another tool
 ## ✨ Features
 
 - **Uncensored AI Chat** — Run abliterated models locally with zero restrictions
+- **Multi-Provider Support** — Ollama (local), OpenAI-compatible (OpenRouter, Groq, LMStudio, vLLM), Anthropic (Claude). Switch providers per conversation.
 - **Agent Mode (Beta)** — Give your AI tools: web search, web fetch, file I/O, code execution, image generation. It chains tools autonomously to answer questions with real data. Best with [Hermes 3](https://ollama.com/library/hermes3).
+- **Model A/B Compare** — Send the same prompt to two models side by side. Compare speed, quality, and token usage in real-time with parallel streaming.
+- **Local Benchmark** — One-click benchmark any model on your hardware. Measures tokens/sec, time-to-first-token. Leaderboard across all tested models.
 - **Memory System** — Agent Mode auto-saves tool results. Persistent across sessions. Export/import as .md.
 - **Image Generation** — Text-to-image via ComfyUI with full parameter control
 - **Video Generation** — Text-to-video with Wan 2.1/2.2, HunyuanVideo, LTX support
 - **Document Chat (RAG)** — Upload PDFs, DOCX, or TXT files and chat with your documents
 - **Voice Chat** — Talk to your AI with push-to-talk and hear responses with TTS
+- **LaTeX / Math Rendering** — Full KaTeX support for inline and block math equations
+- **Chat Export** — Export conversations as Markdown or JSON with one click
+- **Token Counter** — Live token usage display with color-coded progress bar
+- **Keyboard Shortcuts** — Ctrl+N (new chat), Ctrl+E (export), Ctrl+L (focus input), Ctrl+/ (shortcuts)
+- **Search Providers** — Agent web search via SearXNG, Brave Search, Tavily, or DuckDuckGo. Configurable in settings.
 - **25+ Personas** — From Helpful Assistant to Roast Master, switchable via dropdown
-- **Model Manager** — Browse, install, and switch models. HOT badges for recommended models. Variant selector for multi-size downloads.
+- **Model Manager** — Browse uncensored + mainstream models. HOT/AGENT badges. Variant selector for multi-size downloads.
 - **Thinking Display** — See the AI's reasoning in collapsible blocks
 - **Linear/Arc UI** — Compact, monochrome, collapsible settings. Premium feel.
 - **Privacy First** — Zero tracking. All API calls proxied locally. No analytics.
-- **100% Local** — Everything runs on your machine
+- **100% Local** — Everything runs on your machine (cloud providers optional)
 - **Standalone Desktop App** — Tauri v2 Rust backend. Download the .exe, run it.
 
 ## Tech Stack
@@ -80,7 +92,7 @@ Tired of switching between Ollama for chat, ComfyUI for images, and another tool
 - **Desktop**: Tauri v2 (Rust backend, standalone .exe — no Node.js required)
 - **Frontend**: React 19, TypeScript, Tailwind CSS 4, Framer Motion
 - **State**: Zustand with localStorage persistence
-- **AI Backend**: Ollama (text), ComfyUI (images/video), faster-whisper (voice)
+- **AI Backend**: Ollama (local text), OpenAI-compat (cloud/local), Anthropic (cloud), ComfyUI (images/video), faster-whisper (voice)
 - **Build**: Vite 8 (dev), Tauri CLI (production)
 
 ---
@@ -190,6 +202,8 @@ Just install models in the standard locations and the app picks them up.
 |-------|------|------|----------|
 | **Hermes 3 8B** | 4.3 GB | 6 GB | **Agent Mode** — uncensored + native tool calling |
 | **Hermes 3 70B** | 42 GB | 48 GB | **Best Agent** — maximum power |
+| **Gemma 4 26B MoE** | 18 GB | 8 GB | 26B brain, runs like 4B. Vision + tools. Apache 2.0 |
+| Gemma 4 E4B | 9.6 GB | 6 GB | Vision + native tools. 128K context |
 | Qwen 3.5 Abliterated | 5–18 GB | 6–16 GB | Best overall intelligence |
 | Qwen 3 8B Abliterated | 5.2 GB | 6 GB | Fast, great for coding |
 | DeepSeek R1 (8B–70B) | 5–42 GB | 6–48 GB | Chain-of-thought reasoning |
@@ -243,9 +257,18 @@ COMFYUI_PATH=/path/to/your/ComfyUI
 - [x] **Agent Mode (Beta)** — Tool calling with web search, file I/O, code execution
 - [x] **Memory System** — Persistent agent memory with export/import
 - [x] **Voice Chat** — STT + TTS with local Whisper
-- [ ] **Audio Generation** — Text-to-speech and music generation
+- [x] **Multi-Provider** — Ollama + OpenAI-compatible + Anthropic
+- [x] **Model A/B Compare** — Side-by-side model comparison with parallel streaming
+- [x] **Local Benchmark** — One-click benchmark with leaderboard
+- [x] **LaTeX Rendering** — KaTeX for math equations
+- [x] **Token Counter** — Live context window usage
+- [x] **Chat Export** — Markdown and JSON export
+- [x] **Keyboard Shortcuts** — Power-user shortcuts (Ctrl+N, Ctrl+E, Ctrl+/)
+- [x] **Search Providers** — Brave Search, Tavily, SearXNG, DuckDuckGo
+- [ ] **MCP Support** — Model Context Protocol for extensible tool calling
+- [ ] **Create Modes** — img2img, upscale, inpainting, background removal
+- [ ] **Workflow Chains** — Chain multiple generation steps into pipelines
 - [ ] **Plugin System** — Extend the app with community plugins
-- [ ] **Multi-User Mode** — Share your local AI server with your household
 - [ ] **Mobile UI** — Responsive layout for phone/tablet access
 
 Have an idea? [Open a discussion](https://github.com/PurpleDoubleD/locally-uncensored/discussions)!
@@ -256,18 +279,20 @@ Have an idea? [Open a discussion](https://github.com/PurpleDoubleD/locally-uncen
 
 ```
 src/
-  api/          # Ollama & ComfyUI API clients
-  components/   # React components
-    chat/       # Chat UI (messages, input, markdown)
-    create/     # Image/Video generation UI
-    models/     # Model management
-    personas/   # Persona selection
-    settings/   # App settings
-    ui/         # Reusable UI components
-  hooks/        # Custom React hooks
-  stores/       # Zustand state management
-  types/        # TypeScript definitions
-  lib/          # Constants & utilities
+  api/            # Backend clients (Ollama, ComfyUI, providers, RAG, voice, agents)
+    providers/    # Multi-provider system (Ollama, OpenAI-compat, Anthropic)
+  components/     # React components
+    chat/         # Chat UI, A/B Compare, Token Counter, Export
+    create/       # Image/Video generation UI
+    models/       # Model management, Benchmark, Discovery
+    personas/     # Persona selection
+    settings/     # App settings, Provider config, Search provider
+    layout/       # App shell, Sidebar, Header, Shortcuts modal
+    ui/           # Reusable UI components
+  hooks/          # useChat, useABCompare, useBenchmark, useKeyboardShortcuts
+  stores/         # Zustand stores (chat, model, settings, provider, compare, benchmark)
+  types/          # TypeScript definitions
+  lib/            # Utilities, benchmark prompts, chat export, model compatibility
 ```
 
 ---

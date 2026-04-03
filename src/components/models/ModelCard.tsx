@@ -1,5 +1,6 @@
 import { Trash2, Info, MessageSquare, Image, Video } from 'lucide-react'
 import { formatBytes } from '../../lib/formatters'
+import { BenchmarkButton } from './ModelBenchmark'
 import type { AIModel } from '../../types/models'
 
 interface Props {
@@ -53,6 +54,13 @@ export function ModelCard({ model, isActive, onSelect, onDelete, onInfo, canDele
           )}
         </div>
       </div>
+
+      {/* Benchmark (always visible for text models) */}
+      {model.type === 'text' && (
+        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+          <BenchmarkButton modelName={model.name} />
+        </div>
+      )}
 
       {/* Actions (visible on hover) */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
