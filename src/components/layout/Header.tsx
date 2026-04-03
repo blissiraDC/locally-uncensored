@@ -77,7 +77,17 @@ export function Header() {
         >
           <GitCompareArrows size={14} />
         </button>
-        {navBtn('models', <Trophy size={14} />, 'Benchmark', false)}
+        <button
+          onClick={() => setView('models')}
+          className={`p-1.5 rounded-md transition-colors ${
+            currentView === 'models'
+              ? 'bg-gray-200 dark:bg-white/10 text-gray-900 dark:text-white'
+              : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5'
+          }`}
+          title="Benchmark"
+        >
+          <Trophy size={14} />
+        </button>
         {navBtn('models', <Layers size={14} />, 'Models')}
         {navBtn('settings', <Settings size={14} />, 'Settings')}
       </div>
