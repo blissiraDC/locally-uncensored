@@ -77,6 +77,7 @@ export interface ProviderModel {
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
   content: string
+  images?: { data: string; mimeType: string }[]  // base64 image attachments
   tool_calls?: ToolCall[]
   tool_call_id?: string  // Required for OpenAI tool results
 }
@@ -96,6 +97,7 @@ export interface ChatOptions {
   topP?: number
   topK?: number         // Ollama/Anthropic support this, OpenAI doesn't
   maxTokens?: number
+  thinking?: boolean    // Enable model thinking/reasoning mode
   signal?: AbortSignal
 }
 
@@ -103,6 +105,7 @@ export interface ChatOptions {
 
 export interface ChatStreamChunk {
   content: string
+  thinking?: string    // Model reasoning (Ollama thinking field, <think> tags)
   toolCalls?: ToolCall[]
   done: boolean
 }

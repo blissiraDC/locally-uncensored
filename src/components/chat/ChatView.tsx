@@ -14,7 +14,7 @@ import { ErrorBoundary } from '../ui/ErrorBoundary'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { FEATURE_FLAGS } from '../../lib/constants'
 import { isAgentCompatible } from '../../lib/model-compatibility'
-import { FileText, Bot, User, ChevronDown, Download } from 'lucide-react'
+import { FileText, Bot, User, ChevronDown, Download, Brain, Wrench } from 'lucide-react'
 import { TokenCounter } from './TokenCounter'
 import { MemoryDebugToggle } from './MemoryDebugPanel'
 import { ABCompare } from './ABCompare'
@@ -31,9 +31,12 @@ export function ChatView() {
   const [ragPanelOpen, setRagPanelOpen] = useState(false)
   const [personaOpen, setPersonaOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false)
   const { getActivePersona, setActivePersona } = useSettingsStore()
   const activePersona = getActivePersona()
   const allPersonas = useSettingsStore((s) => s.personas)
+  const thinkingEnabled = useSettingsStore((s) => s.settings.thinkingEnabled)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
 
   const docCount = useRAGStore((s) =>
     activeConversationId ? (s.documents[activeConversationId] || []).length : 0
@@ -83,8 +86,47 @@ export function ChatView() {
             transition={{ duration: 0.25, ease: 'easeOut' }}
           >
             <div className="flex-1 flex flex-col min-w-0">
-              {/* Top bar: Token Counter + Documents + Agent Mode */}
-              <div className="flex items-center justify-end gap-2 px-3 pt-1">
+              {/* Top bar — compact */}
+              <div className="flex items-center gap-1.5 px-2 pt-0.5">
+                {/* Left: Tools Active dropdown (only when agent is active) */}
+                {isAgentActive && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setToolsDropdownOpen(!toolsDropdownOpen)}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded border border-white/[0.06] text-gray-500 hover:border-white/15 transition-colors text-[0.55rem]"
+                    >
+                      <Wrench size={9} className="text-green-400" />
+                      <span>Tools</span>
+                      <ChevronDown size={8} className={`transition-transform ${toolsDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {toolsDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setToolsDropdownOpen(false)} />
+                        <div className="absolute left-0 top-full mt-0.5 z-50 w-28 rounded-md bg-[#1a1a1a] border border-white/10 shadow-xl py-0.5 px-0.5">
+                          <PermissionOverrideBar />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Thinking toggle */}
+                <button
+                  onClick={() => updateSettings({ thinkingEnabled: !thinkingEnabled })}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded border transition-colors text-[0.55rem] ${
+                    thinkingEnabled
+                      ? 'border-blue-500/30 text-blue-400'
+                      : 'border-white/[0.06] text-gray-600'
+                  }`}
+                  title="Toggle thinking mode — model reasons before answering"
+                >
+                  <Brain size={9} />
+                  <span>Think</span>
+                </button>
+
+                {/* Spacer */}
+                <div className="flex-1" />
+
                 {/* Token Counter */}
                 <TokenCounter />
 
@@ -95,15 +137,15 @@ export function ChatView() {
                 <div className="relative">
                   <button
                     onClick={() => setExportOpen(!exportOpen)}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-gray-300 dark:border-white/15 hover:border-gray-400 dark:hover:border-white/25 text-gray-500 dark:text-gray-400 transition-colors text-xs"
+                    className="flex items-center gap-1 px-2 py-0.5 rounded border border-white/[0.06] hover:border-white/15 text-gray-500 transition-colors text-[0.55rem]"
                     title="Export chat"
                   >
-                    <Download size={13} />
+                    <Download size={10} />
                   </button>
                   {exportOpen && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setExportOpen(false)} />
-                      <div className="absolute right-0 top-full mt-1 z-50 w-36 rounded-lg bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-xl py-1">
+                      <div className="absolute right-0 top-full mt-1 z-50 w-32 rounded-lg bg-[#1a1a1a] border border-white/10 shadow-xl py-1">
                         {(['markdown', 'json'] as const).map(fmt => (
                           <button
                             key={fmt}
@@ -112,9 +154,9 @@ export function ChatView() {
                               if (conv) exportConversation(conv, fmt)
                               setExportOpen(false)
                             }}
-                            className="w-full text-left px-3 py-1.5 text-[0.65rem] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                            className="w-full text-left px-3 py-1 text-[0.55rem] text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors"
                           >
-                            Export as .{fmt === 'markdown' ? 'md' : fmt}
+                            .{fmt === 'markdown' ? 'md' : fmt}
                           </button>
                         ))}
                       </div>
@@ -126,31 +168,29 @@ export function ChatView() {
                 <div className="relative">
                   <button
                     onClick={() => setPersonaOpen(!personaOpen)}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-gray-300 dark:border-white/15 hover:border-gray-400 dark:hover:border-white/25 text-gray-500 dark:text-gray-400 transition-colors text-xs"
+                    className="flex items-center gap-1 px-2 py-0.5 rounded border border-white/[0.06] hover:border-white/15 text-gray-500 transition-colors text-[0.55rem]"
                   >
-                    <User size={13} />
-                    <span className="font-medium max-w-[80px] truncate">{activePersona?.name || 'No Persona'}</span>
-                    <ChevronDown size={10} className={`transition-transform ${personaOpen ? 'rotate-180' : ''}`} />
+                    <User size={10} />
+                    <span className="max-w-[60px] truncate">{activePersona?.name || 'No Filter'}</span>
+                    <ChevronDown size={8} className={`transition-transform ${personaOpen ? 'rotate-180' : ''}`} />
                   </button>
                   {personaOpen && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setPersonaOpen(false)} />
-                      <div className="absolute right-0 top-full mt-1 z-50 w-48 max-h-[250px] overflow-y-auto scrollbar-thin rounded-lg bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-xl py-1">
-                        {/* Active persona pinned at top */}
+                      <div className="absolute right-0 top-full mt-1 z-50 w-44 max-h-[220px] overflow-y-auto scrollbar-thin rounded-lg bg-[#1a1a1a] border border-white/10 shadow-xl py-1">
                         {activePersona && (
                           <div className="px-2 pb-1 mb-1 border-b border-white/[0.06]">
-                            <div className="px-2 py-1.5 rounded-md bg-white/[0.06] border border-white/10 text-[0.65rem] text-white font-medium flex items-center gap-1.5">
+                            <div className="px-2 py-1 rounded-md bg-white/[0.06] border border-white/10 text-[0.55rem] text-white font-medium flex items-center gap-1.5">
                               <div className="w-1 h-1 rounded-full bg-green-400 shrink-0" />
                               {activePersona.name}
                             </div>
                           </div>
                         )}
-                        {/* Other personas */}
                         {allPersonas.filter(p => p.id !== activePersona?.id).map(p => (
                           <button
                             key={p.id}
                             onClick={() => { setActivePersona(p.id); setPersonaOpen(false) }}
-                            className="w-full text-left px-3 py-1.5 text-[0.65rem] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                            className="w-full text-left px-3 py-1 text-[0.55rem] text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors"
                           >
                             {p.name}
                           </button>
@@ -164,19 +204,19 @@ export function ChatView() {
                 <button
                   onClick={() => setRagPanelOpen(!ragPanelOpen)}
                   className={
-                    'flex items-center gap-1.5 px-3 py-1 rounded-full border transition-colors text-xs ' +
+                    'flex items-center gap-1 px-2 py-0.5 rounded border transition-colors text-[0.55rem] ' +
                     (ragPanelOpen || ragEnabled
-                      ? 'border-green-400 dark:border-green-500/40 text-green-600 dark:text-green-300'
-                      : 'border-gray-300 dark:border-white/15 hover:border-gray-400 dark:hover:border-white/25 text-gray-500 dark:text-gray-400')
+                      ? 'border-green-500/30 text-green-400'
+                      : 'border-white/[0.06] hover:border-white/15 text-gray-500')
                   }
                   title="Document Chat (RAG)"
                 >
-                  <FileText size={13} />
-                  <span className="font-medium">Documents</span>
+                  <FileText size={10} />
+                  <span>Docs</span>
                   {docCount > 0 && (
                     <span className={
-                      'min-w-[16px] h-[16px] flex items-center justify-center rounded-full text-[0.55rem] font-bold ' +
-                      (ragEnabled ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-white/15 text-gray-600 dark:text-gray-300')
+                      'min-w-[12px] h-[12px] flex items-center justify-center rounded-full text-[0.45rem] font-bold ' +
+                      (ragEnabled ? 'bg-green-500 text-white' : 'bg-white/15 text-gray-300')
                     }>
                       {docCount}
                     </span>
@@ -186,25 +226,22 @@ export function ChatView() {
                 {/* Agent Mode (Beta) */}
                 {FEATURE_FLAGS.AGENT_MODE && (
                   <div className={
-                    'flex items-center gap-1.5 px-3 py-1 rounded-full border transition-colors text-xs ' +
+                    'flex items-center gap-1 px-2 py-0.5 rounded border transition-colors text-[0.55rem] ' +
                     (isAgentActive
-                      ? 'border-green-400 dark:border-green-500/40 text-green-600 dark:text-green-300'
+                      ? 'border-green-500/30 text-green-400'
                       : activeModel && !isAgentCompatible(activeModel)
-                        ? 'border-gray-300/50 dark:border-white/8 text-gray-400 dark:text-gray-600 opacity-50'
-                        : 'border-gray-300 dark:border-white/15 text-gray-500 dark:text-gray-400')
+                        ? 'border-white/[0.04] text-gray-600 opacity-50'
+                        : 'border-white/[0.06] text-gray-500')
                   }>
-                    <Bot size={13} />
+                    <Bot size={10} />
                     <div className="flex flex-col items-start leading-none">
-                      <span className="text-[0.45rem] text-amber-400 font-bold uppercase tracking-widest">Beta</span>
-                      <span className="font-medium">Agent</span>
+                      <span className="text-[0.35rem] text-amber-400 font-bold uppercase tracking-widest">Beta</span>
+                      <span>Agent</span>
                     </div>
                     <AgentModeToggle />
                   </div>
                 )}
               </div>
-
-              {/* Permission Override Bar — shown when agent mode is active */}
-              {isAgentActive && <PermissionOverrideBar />}
 
               <MessageList
                 isGenerating={isGenerating}

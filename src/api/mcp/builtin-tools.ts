@@ -271,12 +271,20 @@ async function executeShellExecute(args: Record<string, any>): Promise<string> {
     timeout: args.timeout || 120000,
     shell: args.shell || null,
   })
-  return `Exit code: ${data.exitCode ?? 0}\nStdout:\n${data.stdout || ''}\nStderr:\n${data.stderr || ''}`
+  const output = data.stdout || ''
+  const err = data.stderr || ''
+  if (data.timedOut) return `Timed out.\n${err}`
+  if (data.exitCode && data.exitCode !== 0) return `Error (${data.exitCode}):\n${err || output}`
+  return output || (err ? `stderr: ${err}` : 'Done.')
 }
 
 async function executeCodeExecute(args: Record<string, any>): Promise<string> {
   const data = await backendCall('execute_code', { code: args.code, timeout: 30000 })
-  return `Exit code: ${data.exitCode ?? 0}\nStdout:\n${data.stdout || ''}\nStderr:\n${data.stderr || ''}`
+  const output = data.stdout || ''
+  const err = data.stderr || ''
+  if (data.timedOut) return `Timed out.\n${err}`
+  if (data.exitCode && data.exitCode !== 0) return `Error (${data.exitCode}):\n${err || output}`
+  return output || (err ? `stderr: ${err}` : 'Done.')
 }
 
 async function executeSystemInfo(): Promise<string> {

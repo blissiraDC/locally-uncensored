@@ -16,7 +16,7 @@ import { parseNDJSONStream } from '../stream'
 // ── Ollama-specific types ──────────────────────────────────────
 
 interface OllamaChatChunk {
-  message?: { content: string; tool_calls?: { function: { name: string; arguments: Record<string, any> } }[] }
+  message?: { content: string; thinking?: string; tool_calls?: { function: { name: string; arguments: Record<string, any> } }[] }
   done?: boolean
 }
 
@@ -58,7 +58,11 @@ export class OllamaProvider implements ProviderClient {
     messages: ChatMessage[],
     options?: ChatOptions,
   ): AsyncGenerator<ChatStreamChunk> {
-    const ollamaMessages = messages.map(m => ({ role: m.role, content: m.content }))
+    const ollamaMessages = messages.map(m => {
+      const msg: Record<string, any> = { role: m.role, content: m.content }
+      if (m.images?.length) msg.images = m.images.map(img => img.data)
+      return msg
+    })
 
     const body: Record<string, any> = {
       model,
@@ -72,6 +76,7 @@ export class OllamaProvider implements ProviderClient {
     if (options?.topK !== undefined) ollamaOptions.top_k = options.topK
     if (options?.maxTokens) ollamaOptions.num_predict = options.maxTokens
     body.options = ollamaOptions
+    body.think = options?.thinking === true
 
     const res = await localFetchStream(this.apiUrl('/chat'), {
       method: 'POST',
@@ -95,6 +100,7 @@ export class OllamaProvider implements ProviderClient {
 
       yield {
         content: chunk.message?.content || '',
+        thinking: chunk.message?.thinking || undefined,
         toolCalls: toolCalls?.length ? toolCalls : undefined,
         done: chunk.done || false,
       }
@@ -110,6 +116,7 @@ export class OllamaProvider implements ProviderClient {
     const ollamaMessages = messages.map(m => {
       const msg: Record<string, any> = { role: m.role, content: m.content }
       if (m.tool_calls) msg.tool_calls = m.tool_calls
+      if (m.images?.length) msg.images = m.images.map(img => img.data)
       return msg
     })
 
@@ -126,6 +133,7 @@ export class OllamaProvider implements ProviderClient {
     if (options?.topK !== undefined) ollamaOptions.top_k = options.topK
     if (options?.maxTokens) ollamaOptions.num_predict = options.maxTokens
     body.options = ollamaOptions
+    body.think = options?.thinking === true
 
     const fetchOptions: any = {
       method: 'POST',
@@ -150,6 +158,7 @@ export class OllamaProvider implements ProviderClient {
 
     return {
       content: data.message?.content || '',
+      thinking: data.message?.thinking || '',
       toolCalls,
     }
   }

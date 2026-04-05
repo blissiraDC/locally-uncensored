@@ -280,8 +280,20 @@ export class AnthropicProvider implements ProviderClient {
         continue
       }
 
-      // Regular user/assistant message
-      anthropicMessages.push({ role: msg.role, content: msg.content })
+      // Regular user/assistant message — with optional images
+      if (msg.images?.length && msg.role === 'user') {
+        const content: any[] = []
+        for (const img of msg.images) {
+          content.push({
+            type: 'image',
+            source: { type: 'base64', media_type: img.mimeType, data: img.data },
+          })
+        }
+        content.push({ type: 'text', text: msg.content })
+        anthropicMessages.push({ role: 'user', content })
+      } else {
+        anthropicMessages.push({ role: msg.role, content: msg.content })
+      }
     }
 
     // Anthropic requires messages to alternate user/assistant.

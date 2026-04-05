@@ -53,24 +53,25 @@ export function MessageBubble({ message, onRegenerate, onEdit }: Props) {
 
   return (
     <motion.div
-      className={'flex gap-2.5 px-3 py-2 group ' + (isUser ? 'flex-row-reverse' : '')}
-      initial={{ opacity: 0, y: 10 }}
+      className={'flex gap-2 px-3 py-1 group ' + (isUser ? 'flex-row-reverse' : '')}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
+      transition={{ duration: 0.15 }}
     >
+      {/* Avatar */}
       <div
         className={
-          'w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ' +
+          'w-6 h-6 rounded-md flex items-center justify-center shrink-0 ' +
           (isUser
-            ? 'bg-gray-200 dark:bg-white/10 border border-gray-300 dark:border-white/15'
-            : 'bg-gray-100 dark:bg-[#2f2f2f] border border-gray-200 dark:border-white/10')
+            ? 'bg-white/8 border border-white/10'
+            : 'bg-white/5 border border-white/[0.06]')
         }
       >
-        {isUser ? <User size={13} className="text-gray-600 dark:text-gray-300" /> : <Bot size={13} className="text-gray-500 dark:text-gray-400" />}
+        {isUser ? <User size={11} className="text-gray-400" /> : <Bot size={11} className="text-gray-500" />}
       </div>
 
-      <div className="max-w-[80%] space-y-1.5">
-        {/* Thinking block (collapsible, lighter blue, italic, smaller) */}
+      <div className="max-w-[80%] space-y-0.5">
+        {/* Thinking block */}
         {!isUser && message.thinking && (
           <ThinkingBlock thinking={message.thinking} />
         )}
@@ -86,17 +87,37 @@ export function MessageBubble({ message, onRegenerate, onEdit }: Props) {
           </>
         )}
 
-        {/* Main answer bubble */}
+        {/* Image attachments */}
+        {message.images && message.images.length > 0 && (
+          <div className="flex gap-1 flex-wrap">
+            {message.images.map((img, i) => (
+              <a
+                key={i}
+                href={`data:${img.mimeType};base64,${img.data}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <img
+                  src={`data:${img.mimeType};base64,${img.data}`}
+                  alt={img.name}
+                  className="max-w-[180px] max-h-[120px] object-cover rounded-md border border-white/10 hover:border-white/25 transition-colors cursor-pointer"
+                />
+              </a>
+            ))}
+          </div>
+        )}
+
+        {/* Main content */}
         <div
           className={
-            'rounded-xl px-3 py-2 relative ' +
+            'rounded-lg px-2.5 py-1.5 relative ' +
             (isUser
-              ? 'bg-gray-100 dark:bg-[#2f2f2f] border border-gray-200 dark:border-white/10'
-              : 'bg-white dark:bg-[#2a2a2a] border border-gray-200 dark:border-white/5')
+              ? 'bg-white/[0.06] border border-white/[0.08]'
+              : 'bg-white/[0.03] border border-white/[0.04]')
           }
         >
           {isUser && isEditing ? (
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <textarea
                 ref={editRef}
                 value={editContent}
@@ -109,65 +130,43 @@ export function MessageBubble({ message, onRegenerate, onEdit }: Props) {
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmEdit() }
                   if (e.key === 'Escape') cancelEdit()
                 }}
-                className="w-full bg-transparent text-[0.8rem] leading-relaxed text-gray-800 dark:text-gray-200 resize-none focus:outline-none"
+                className="w-full bg-transparent text-[0.78rem] leading-relaxed text-gray-200 resize-none focus:outline-none"
               />
               <div className="flex items-center gap-1 justify-end">
-                <button onClick={confirmEdit} className="p-0.5 rounded hover:bg-green-500/20 text-green-500 transition-colors" title="Save & resend">
-                  <Check size={12} />
-                </button>
-                <button onClick={cancelEdit} className="p-0.5 rounded hover:bg-red-500/20 text-red-400 transition-colors" title="Cancel">
-                  <X size={12} />
-                </button>
+                <button onClick={confirmEdit} className="p-0.5 rounded hover:bg-green-500/20 text-green-500 transition-colors"><Check size={11} /></button>
+                <button onClick={cancelEdit} className="p-0.5 rounded hover:bg-red-500/20 text-red-400 transition-colors"><X size={11} /></button>
               </div>
             </div>
           ) : isUser ? (
-            <p className="text-[0.8rem] leading-relaxed text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{message.content}</p>
+            <p className="text-[0.78rem] leading-relaxed text-gray-200 whitespace-pre-wrap">{message.content}</p>
           ) : (
-            <div className="text-[0.8rem] leading-relaxed">
+            <div className="text-[0.78rem] leading-relaxed">
               <MarkdownRenderer content={message.content} />
             </div>
           )}
 
           {!isEditing && (
-            <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5">
-              {/* Edit (user messages only) */}
+            <div className="absolute top-1 right-1 flex items-center gap-0.5">
               {isUser && onEdit && (
-                <button
-                  onClick={startEdit}
-                  className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-400 hover:text-gray-700 dark:hover:text-white transition-all"
-                  aria-label="Edit message"
-                >
-                  <Pencil size={12} />
-                </button>
+                <button onClick={startEdit} className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-white/10 text-gray-500 hover:text-white transition-all" aria-label="Edit message"><Pencil size={10} /></button>
               )}
-              {/* Regenerate (assistant messages only) */}
               {!isUser && onRegenerate && (
-                <button
-                  onClick={onRegenerate}
-                  className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-400 hover:text-gray-700 dark:hover:text-white transition-all"
-                  aria-label="Regenerate response"
-                >
-                  <RefreshCw size={12} />
-                </button>
+                <button onClick={onRegenerate} className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-white/10 text-gray-500 hover:text-white transition-all" aria-label="Regenerate response"><RefreshCw size={10} /></button>
               )}
-              <button
-                onClick={handleCopy}
-                className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-400 hover:text-gray-700 dark:hover:text-white transition-all"
-                aria-label="Copy message"
-              >
-                {copied ? <Check size={12} /> : <Copy size={12} />}
+              <button onClick={handleCopy} className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-white/10 text-gray-500 hover:text-white transition-all" aria-label="Copy message">
+                {copied ? <Check size={10} /> : <Copy size={10} />}
               </button>
               {!isUser && <SpeakerButton text={message.content} />}
             </div>
           )}
         </div>
 
-        {/* Sources section for RAG citations */}
+        {/* RAG sources */}
         {!isUser && message.sources && message.sources.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-gray-100 dark:border-white/5">
-            <p className="text-[0.6rem] text-gray-400 mb-1">Sources:</p>
+          <div className="pt-1 border-t border-white/[0.04]">
+            <p className="text-[0.5rem] text-gray-500 mb-0.5">Sources:</p>
             {message.sources.map((s, i) => (
-              <p key={i} className="text-[0.6rem] text-gray-500 dark:text-gray-400 truncate">
+              <p key={i} className="text-[0.5rem] text-gray-600 truncate">
                 [{i + 1}] {s.documentName} — {s.preview.slice(0, 60)}...
               </p>
             ))}

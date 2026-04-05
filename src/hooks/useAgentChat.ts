@@ -112,7 +112,7 @@ export function useAgentChat() {
 
   // ── Main agent message handler ────────────────────────────
 
-  const sendAgentMessage = useCallback(async (userContent: string) => {
+  const sendAgentMessage = useCallback(async (userContent: string, userImages?: import('../types/chat').ImageAttachment[]) => {
     const { activeModel } = useModelStore.getState()
     const { settings } = useSettingsStore.getState()
     const store = useChatStore.getState()
@@ -219,6 +219,7 @@ export function useAgentChat() {
       id: uuid(),
       role: 'user' as const,
       content: userContent,
+      images: userImages,
       timestamp: Date.now(),
     }
     useChatStore.getState().addMessage(convId, userMessage)
@@ -286,7 +287,11 @@ export function useAgentChat() {
       ...(agentSystemPrompt ? [{ role: 'system' as const, content: agentSystemPrompt }] : []),
       ...conv.messages
         .filter((m) => m.role !== 'system' && m.content.trim() !== '')
-        .map((m) => ({ role: m.role as 'user' | 'assistant' | 'tool', content: m.content })),
+        .map((m) => ({
+          role: m.role as 'user' | 'assistant' | 'tool',
+          content: m.content,
+          ...(m.images?.length ? { images: m.images.map(img => ({ data: img.data, mimeType: img.mimeType })) } : {}),
+        })),
     ]
 
     // Setup
@@ -327,6 +332,7 @@ export function useAgentChat() {
           topP: settings.topP,
           topK: settings.topK,
           maxTokens: settings.maxTokens || undefined,
+          thinking: settings.thinkingEnabled === true ? true : false,
           signal: abort.signal,
         }
 
@@ -344,6 +350,8 @@ export function useAgentChat() {
 
           toolCalls = turn.toolCalls
           turnContent = turn.content || ''
+          // Native thinking field from Ollama
+          if ((turn as any).thinking) turnThinking = (turn as any).thinking
 
         } else {
           // ── Hermes XML prompt-based tool calling (Ollama fallback) ──

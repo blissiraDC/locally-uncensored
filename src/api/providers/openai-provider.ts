@@ -262,7 +262,17 @@ export class OpenAIProvider implements ProviderClient {
   // ── Message conversion ───────────────────────────────────────
 
   private toOpenAIMessage(msg: ChatMessage): Record<string, any> {
-    const m: Record<string, any> = { role: msg.role, content: msg.content }
+    // If message has images, use content array format
+    let content: any = msg.content
+    if (msg.images?.length && msg.role === 'user') {
+      const parts: any[] = []
+      for (const img of msg.images) {
+        parts.push({ type: 'image_url', image_url: { url: `data:${img.mimeType};base64,${img.data}` } })
+      }
+      parts.push({ type: 'text', text: msg.content })
+      content = parts
+    }
+    const m: Record<string, any> = { role: msg.role, content }
 
     if (msg.tool_calls) {
       m.tool_calls = msg.tool_calls.map(tc => ({

@@ -8,6 +8,7 @@ export interface Settings {
   maxTokens: number
   theme: 'light' | 'dark'
   onboardingDone: boolean
+  thinkingEnabled: boolean
   searchProvider: SearchProvider
   braveApiKey: string
   tavilyApiKey: string

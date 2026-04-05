@@ -14,6 +14,7 @@ import { useMemory } from "./useMemory"
 import { useAgentModeStore } from "../stores/agentModeStore"
 import { getProviderForModel } from "../api/providers"
 import type { ChatStreamChunk } from "../api/providers/types"
+import type { ImageAttachment } from "../types/chat"
 
 export function useChat() {
   const [isGenerating, setIsGenerating] = useState(false)
@@ -27,7 +28,7 @@ export function useChat() {
   const agentChat = useAgentChat()
   const { extractAndSave } = useMemory()
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, images?: ImageAttachment[]) => {
     const { activeModel } = useModelStore.getState()
     const { settings } = useSettingsStore.getState()
     const store = useChatStore.getState()
@@ -35,7 +36,7 @@ export function useChat() {
 
     // Agent mode delegation: if active for this conversation, use agent chat
     if (store.activeConversationId && useAgentModeStore.getState().isActive(store.activeConversationId)) {
-      return agentChat.sendAgentMessage(content)
+      return agentChat.sendAgentMessage(content, images)
     }
 
     if (!activeModel) return
@@ -49,6 +50,7 @@ export function useChat() {
       id: uuid(),
       role: "user" as const,
       content,
+      images,
       timestamp: Date.now(),
     }
     useChatStore.getState().addMessage(convId, userMessage)
@@ -114,7 +116,11 @@ export function useChat() {
       ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
       ...conv.messages
         .filter((m) => m.content.trim() !== '')
-        .map((m) => ({ role: m.role as 'user' | 'assistant' | 'system' | 'tool', content: m.content })),
+        .map((m) => ({
+          role: m.role as 'user' | 'assistant' | 'system' | 'tool',
+          content: m.content,
+          ...(m.images?.length ? { images: m.images.map(img => ({ data: img.data, mimeType: img.mimeType })) } : {}),
+        })),
     ]
 
     const abort = new AbortController()
@@ -138,6 +144,7 @@ export function useChat() {
           topP: settings.topP,
           topK: settings.topK,
           maxTokens: settings.maxTokens || undefined,
+          thinking: settings.thinkingEnabled === true ? true : false,
           signal: abort.signal,
         },
       )
@@ -150,6 +157,11 @@ export function useChat() {
           firstChunk = false
           setIsLoadingModel(false)
           useModelStore.getState().setIsModelLoading(false)
+        }
+
+        // Ollama native thinking field (Gemma 4, Qwen 3.5, etc.)
+        if (chunk.thinking) {
+          thinkingRef.current += chunk.thinking
         }
 
         if (chunk.content) {

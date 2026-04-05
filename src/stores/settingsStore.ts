@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { Settings, Persona } from '../types/settings'
 import { DEFAULT_SETTINGS, BUILT_IN_PERSONAS } from '../lib/constants'
 
-const STORE_VERSION = 2
+const STORE_VERSION = 3
 
 interface SettingsState {
   settings: Settings
@@ -58,10 +58,11 @@ export const useSettingsStore = create<SettingsState>()(
       version: STORE_VERSION,
       migrate: (persisted: any, version: number) => {
         if (version < STORE_VERSION) {
-          // Keep user's custom personas, replace built-in ones
           const customPersonas = (persisted.personas || []).filter((p: Persona) => !p.isBuiltIn)
           return {
             ...persisted,
+            // Merge new default settings into existing (fills missing fields like thinkingEnabled)
+            settings: { ...DEFAULT_SETTINGS, ...(persisted.settings || {}) },
             personas: [...BUILT_IN_PERSONAS, ...customPersonas],
             activePersonaId: persisted.activePersonaId || 'unrestricted',
             _version: STORE_VERSION,

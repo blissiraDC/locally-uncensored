@@ -265,7 +265,10 @@ export async function executeTool(
         code: args.code,
         timeout: 30000,
       });
-      return `Exit code: ${data.exitCode ?? 0}\nStdout:\n${data.stdout || ""}\nStderr:\n${data.stderr || ""}`;
+      const output = data.stdout || "";
+      const err = data.stderr || "";
+      if (data.exitCode && data.exitCode !== 0) return `Error (${data.exitCode}):\n${err || output}`;
+      return output || (err ? `stderr: ${err}` : "Done.");
     }
 
     case "file_read": {
