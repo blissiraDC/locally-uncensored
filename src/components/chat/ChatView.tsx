@@ -235,7 +235,7 @@ export function ChatView() {
                   )}
                 </button>
 
-                {/* Agent Mode (Beta) */}
+                {/* Agent Mode */}
                 {FEATURE_FLAGS.AGENT_MODE && (
                   <div className={
                     'flex items-center gap-1 px-2 py-0.5 rounded border transition-colors text-[0.55rem] ' +
@@ -246,10 +246,7 @@ export function ChatView() {
                         : 'border-gray-200 dark:border-white/[0.06] text-gray-500')
                   }>
                     <Bot size={10} />
-                    <div className="flex flex-col items-start leading-none">
-                      <span className="text-[0.35rem] text-amber-400 font-bold uppercase tracking-widest">Beta</span>
-                      <span>Agent</span>
-                    </div>
+                    <span>Agent</span>
                     <AgentModeToggle />
                   </div>
                 )}

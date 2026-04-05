@@ -59,15 +59,27 @@ export class ToolRegistry {
 
   // ── Execution ─────────────────────────────────────────────────
 
-  async execute(name: string, args: Record<string, any>): Promise<string> {
+  async execute(name: string, args: Record<string, any>, maxRetries = 1): Promise<string> {
     const entry = this.tools.get(name)
     if (!entry) return `Error: Unknown tool "${name}"`
-    try {
-      return await entry.executor(args)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      return `Error: ${message}`
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await entry.executor(args)
+        // If result is an error and we have retries left, retry
+        if (result.startsWith('Error:') && attempt < maxRetries) {
+          // Only retry on transient errors (timeout, network)
+          const isTransient = result.includes('timed out') || result.includes('ECONNREFUSED') || result.includes('fetch failed')
+          if (isTransient) continue
+        }
+        return result
+      } catch (err) {
+        if (attempt < maxRetries) continue
+        const message = err instanceof Error ? err.message : String(err)
+        return `Error: ${message}`
+      }
     }
+    return `Error: Max retries exceeded for "${name}"`
   }
 
   // ── Format Conversion ─────────────────────────────────────────

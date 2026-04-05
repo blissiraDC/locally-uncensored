@@ -195,7 +195,7 @@ export class AnthropicProvider implements ProviderClient {
           id: block.id,
           function: {
             name: block.name!,
-            arguments: block.input || {},
+            arguments: (typeof block.input === 'object' && block.input) ? block.input : {},
           },
         })
       }

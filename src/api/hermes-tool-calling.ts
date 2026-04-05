@@ -11,6 +11,7 @@
  */
 
 import type { AgentToolDef } from '../types/agent-mode'
+import { repairJson } from '../lib/tool-call-repair'
 
 // Generic tool shape accepted by the prompt builder
 type ToolLike = { name: string; description: string; parameters?: any; inputSchema?: any }
@@ -74,22 +75,22 @@ export function parseHermesToolCalls(output: string): ParsedToolCall[] {
 
   while ((match = regex.exec(output)) !== null) {
     const jsonStr = match[1].trim()
-    try {
-      const parsed = JSON.parse(jsonStr)
-      if (parsed.name) {
-        calls.push({
-          name: parsed.name,
-          arguments: parsed.arguments || parsed.parameters || {},
-        })
-      }
-    } catch {
-      // Try to extract name and arguments with regex fallback
-      const nameMatch = jsonStr.match(/"name"\s*:\s*"([^"]+)"/)
-      const argsMatch = jsonStr.match(/"arguments"\s*:\s*(\{[^}]*\})/)
+    // Try direct parse, then repair
+    const parsed = repairJson(jsonStr)
+    if (parsed && parsed.name) {
+      calls.push({
+        name: parsed.name,
+        arguments: parsed.arguments || parsed.parameters || {},
+      })
+    } else {
+      // Last resort regex
+      const nameMatch = jsonStr.match(/["']?name["']?\s*[:=]\s*["']([^"']+)["']/i)
+      const argsMatch = jsonStr.match(/["']?arguments["']?\s*[:=]\s*(\{[\s\S]*?\})/i)
       if (nameMatch) {
         let args = {}
         if (argsMatch) {
-          try { args = JSON.parse(argsMatch[1]) } catch { /* ignore */ }
+          const repaired = repairJson(argsMatch[1])
+          if (repaired) args = repaired
         }
         calls.push({ name: nameMatch[1], arguments: args })
       }

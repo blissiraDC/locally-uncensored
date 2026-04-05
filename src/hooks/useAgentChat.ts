@@ -22,6 +22,7 @@ import { buildExtractionPrompt, parseExtractionResponse } from '../lib/memory-ex
 import { useAgentWorkflowStore } from '../stores/agentWorkflowStore'
 import { WorkflowEngine } from '../lib/workflow-engine'
 import type { AgentBlock, AgentToolCall, OllamaChatMessage } from '../types/agent-mode'
+import { selectRelevantTools } from '../lib/tool-selection'
 import type { ChatMessage, ToolCall, ToolDefinition } from '../api/providers/types'
 import type { StepResult, WorkflowEngineCallbacks } from '../types/agent-workflows'
 
@@ -97,6 +98,11 @@ export function useAgentChat() {
 
   function addBlock(convId: string, msgId: string, block: AgentBlock) {
     blocksRef.current = [...blocksRef.current, block]
+    useChatStore.getState().updateMessageAgentBlocks(convId, msgId, blocksRef.current)
+  }
+
+  function removeBlock(convId: string, msgId: string, blockId: string) {
+    blocksRef.current = blocksRef.current.filter(b => b.id !== blockId)
     useChatStore.getState().updateMessageAgentBlocks(convId, msgId, blocksRef.current)
   }
 
@@ -344,9 +350,24 @@ export function useAgentChat() {
         ) as ChatMessage[]
 
         if (strategy === 'native') {
-          // ── Native tool calling (works with Ollama, OpenAI, Anthropic) ──
-          const tools: ToolDefinition[] = toolRegistry.toOpenAITools(permissions)
+          // Show thinking indicator while model processes
+          const thinkingBlockId = uuid()
+          addBlock(convId!, assistantMessage.id, {
+            id: thinkingBlockId, phase: 'thinking', content: 'Analyzing...',
+            timestamp: Date.now(),
+          })
+
+          // Intelligent tool selection — only include relevant tools
+          const lastUserMsg = agentMessages.filter(m => m.role === 'user').pop()?.content || ''
+          const relevantDefs = selectRelevantTools(lastUserMsg, toolRegistry.getAll(), permissions)
+          const tools: ToolDefinition[] = relevantDefs.map(t => ({
+            type: 'function' as const,
+            function: { name: t.name, description: t.description, parameters: t.inputSchema },
+          }))
           const turn = await provider.chatWithTools(modelToUse, agentMessages, tools, chatOptions)
+
+          // Remove thinking indicator
+          removeBlock(convId!, assistantMessage.id, thinkingBlockId)
 
           toolCalls = turn.toolCalls
           turnContent = turn.content || ''

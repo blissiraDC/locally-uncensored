@@ -12,6 +12,7 @@ import type {
 import { ProviderError } from './types'
 import { isTauri, localFetch, localFetchStream } from '../backend'
 import { parseNDJSONStream } from '../stream'
+import { repairToolCallArgs, extractToolCallsFromContent } from '../../lib/tool-call-repair'
 
 // ── Ollama-specific types ──────────────────────────────────────
 
@@ -152,9 +153,17 @@ export class OllamaProvider implements ProviderClient {
     }
 
     const data = await res.json()
-    const toolCalls: ToolCall[] = (data.message?.tool_calls || []).map((tc: any) => ({
-      function: { name: tc.function.name, arguments: tc.function.arguments },
+    let toolCalls: ToolCall[] = (data.message?.tool_calls || []).map((tc: any) => ({
+      function: { name: tc.function.name, arguments: repairToolCallArgs(tc.function.arguments) },
     }))
+
+    // If no tool calls found but content looks like a tool call, try to extract
+    if (toolCalls.length === 0 && data.message?.content) {
+      const extracted = extractToolCallsFromContent(data.message.content)
+      if (extracted.length > 0) {
+        toolCalls = extracted.map(tc => ({ function: tc }))
+      }
+    }
 
     return {
       content: data.message?.content || '',

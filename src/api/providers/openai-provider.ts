@@ -15,6 +15,7 @@ import type {
 } from './types'
 import { ProviderError } from './types'
 import { parseSSEStream } from '../sse'
+import { repairJson } from '../../lib/tool-call-repair'
 
 // ── OpenAI API Types ───────────────────────────────────────────
 
@@ -315,7 +316,8 @@ export class OpenAIProvider implements ProviderClient {
     try {
       return JSON.parse(args)
     } catch {
-      return {}
+      const repaired = repairJson(args)
+      return repaired && typeof repaired === 'object' ? repaired : {}
     }
   }
 

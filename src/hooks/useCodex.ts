@@ -12,6 +12,7 @@ import { buildHermesToolPrompt, buildHermesToolResult, parseHermesToolCalls, str
 import { chatNonStreaming } from '../api/agents'
 import type { CodexEvent } from '../types/codex'
 import type { AgentBlock, AgentToolCall } from '../types/agent-mode'
+import { selectRelevantTools } from '../lib/tool-selection'
 import type { ChatMessage, ToolCall, ToolDefinition } from '../api/providers/types'
 
 const CODEX_SYSTEM_PROMPT = `You are Codex, an autonomous coding agent inside Locally Uncensored. You execute coding tasks by reading files, writing code, and running shell commands. You MUST use tools to interact with the filesystem — never guess file contents.
@@ -137,7 +138,12 @@ export function useCodex() {
         }
 
         if (strategy === 'native') {
-          const tools: ToolDefinition[] = toolRegistry.toOpenAITools(permissions)
+          const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content || ''
+          const relevantDefs = selectRelevantTools(lastUserMsg, toolRegistry.getAll(), permissions)
+          const tools: ToolDefinition[] = relevantDefs.map(t => ({
+            type: 'function' as const,
+            function: { name: t.name, description: t.description, parameters: t.inputSchema },
+          }))
           const turn = await provider.chatWithTools(modelToUse, messages, tools, chatOptions)
           toolCalls = turn.toolCalls
           turnContent = turn.content || ''
