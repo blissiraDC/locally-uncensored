@@ -814,6 +814,243 @@ function comfyLauncher(): Plugin {
         })
       })
 
+      // --- New Agent Tool Endpoints (Phase 1) ---
+
+      // API: Shell execute
+      server.middlewares.use('/local-api/shell-execute', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { command, cwd, timeout: timeoutMs, shell: shellType } = JSON.parse(body)
+            if (!command) {
+              res.writeHead(400, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ error: 'Missing command' }))
+              return
+            }
+
+            const shellBin = shellType || (process.platform === 'win32' ? 'powershell' : 'bash')
+            const shellArgs: string[] = []
+            if (shellBin.includes('powershell')) {
+              shellArgs.push('-NoProfile', '-NonInteractive', '-Command', command)
+            } else if (shellBin.includes('cmd')) {
+              shellArgs.push('/C', command)
+            } else {
+              shellArgs.push('-c', command)
+            }
+
+            const limit = timeoutMs || 120000
+            let stdout = ''
+            let stderr = ''
+            let killed = false
+
+            const proc = spawn(shellBin, shellArgs, {
+              cwd: cwd || undefined,
+              stdio: ['ignore', 'pipe', 'pipe'],
+              shell: false,
+            })
+
+            const timer = setTimeout(() => {
+              killed = true
+              try { proc.kill('SIGKILL') } catch { /* dead */ }
+            }, limit)
+
+            proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString() })
+            proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
+
+            proc.on('exit', (exitCode) => {
+              clearTimeout(timer)
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({
+                stdout, stderr,
+                exitCode: killed ? -1 : (exitCode ?? 1),
+                timedOut: killed,
+              }))
+            })
+
+            proc.on('error', (err: Error) => {
+              clearTimeout(timer)
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ stdout: '', stderr: err.message, exitCode: 1, timedOut: false }))
+            })
+          } catch (err) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+        })
+      })
+
+      // API: FS read (unsandboxed)
+      server.middlewares.use('/local-api/fs-read', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { path: filePath } = JSON.parse(body)
+            const os = require('os')
+            const fs = require('fs')
+            const resolved = require('path').isAbsolute(filePath) ? filePath : join(os.homedir(), 'agent-workspace', filePath)
+            const content = fs.readFileSync(resolved, 'utf8')
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ content, encoding: 'utf8' }))
+          } catch (err) {
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+        })
+      })
+
+      // API: FS write (unsandboxed)
+      server.middlewares.use('/local-api/fs-write', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { path: filePath, content } = JSON.parse(body)
+            const os = require('os')
+            const fs = require('fs')
+            const resolved = require('path').isAbsolute(filePath) ? filePath : join(os.homedir(), 'agent-workspace', filePath)
+            const parentDir = resolve(resolved, '..')
+            if (!existsSync(parentDir)) mkdirSync(parentDir, { recursive: true })
+            fs.writeFileSync(resolved, content, 'utf8')
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ status: 'saved', path: resolved }))
+          } catch (err) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+        })
+      })
+
+      // API: FS list
+      server.middlewares.use('/local-api/fs-list', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { path: dirPath, recursive } = JSON.parse(body)
+            const os = require('os')
+            const fs = require('fs')
+            const resolved = require('path').isAbsolute(dirPath) ? dirPath : join(os.homedir(), 'agent-workspace', dirPath)
+            const entries: any[] = []
+            const items = fs.readdirSync(resolved, { withFileTypes: true })
+            for (const item of items.slice(0, 500)) {
+              const fullPath = join(resolved, item.name)
+              try {
+                const stat = fs.statSync(fullPath)
+                entries.push({ name: item.name, path: fullPath, size: stat.size, isDir: item.isDirectory(), modified: Math.floor(stat.mtimeMs / 1000) })
+              } catch { /* skip */ }
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ entries, count: entries.length }))
+          } catch (err) {
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ entries: [], count: 0, error: String(err) }))
+          }
+        })
+      })
+
+      // API: FS search (grep-like)
+      server.middlewares.use('/local-api/fs-search', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { path: dirPath, pattern, max_results } = JSON.parse(body)
+            const os = require('os')
+            const fs = require('fs')
+            const resolved = require('path').isAbsolute(dirPath) ? dirPath : join(os.homedir(), 'agent-workspace', dirPath)
+            const re = new RegExp(pattern)
+            const results: any[] = []
+            const max = max_results || 50
+
+            function walkDir(dir: string, depth: number) {
+              if (depth > 5 || results.length >= max) return
+              try {
+                for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+                  const full = join(dir, item.name)
+                  if (item.isDirectory() && !item.name.startsWith('.') && item.name !== 'node_modules') {
+                    walkDir(full, depth + 1)
+                  } else if (item.isFile()) {
+                    try {
+                      const stat = fs.statSync(full)
+                      if (stat.size > 1000000) continue
+                      const content = fs.readFileSync(full, 'utf8')
+                      const matches: any[] = []
+                      content.split('\n').forEach((line: string, i: number) => {
+                        if (re.test(line) && matches.length < 10) {
+                          matches.push({ line: i + 1, text: line.slice(0, 200) })
+                        }
+                      })
+                      if (matches.length > 0) results.push({ file: full, matches })
+                    } catch { /* skip binary */ }
+                  }
+                }
+              } catch { /* permission denied */ }
+            }
+            walkDir(resolved, 0)
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ results, count: results.length }))
+          } catch (err) {
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ results: [], count: 0, error: String(err) }))
+          }
+        })
+      })
+
+      // API: FS info
+      server.middlewares.use('/local-api/fs-info', (req, res) => {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return }
+        let body = ''
+        req.on('data', (c: any) => { body += c })
+        req.on('end', () => {
+          try {
+            const { path: filePath } = JSON.parse(body)
+            const os = require('os')
+            const fs = require('fs')
+            const resolved = require('path').isAbsolute(filePath) ? filePath : join(os.homedir(), 'agent-workspace', filePath)
+            const stat = fs.statSync(resolved)
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({
+              path: resolved, size: stat.size, isDir: stat.isDirectory(), isFile: stat.isFile(),
+              modified: Math.floor(stat.mtimeMs / 1000), created: Math.floor(stat.birthtimeMs / 1000),
+              readonly: false,
+            }))
+          } catch (err) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+        })
+      })
+
+      // API: System info
+      server.middlewares.use('/local-api/system-info', (_req, res) => {
+        const os = require('os')
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          os: process.platform, arch: process.arch, hostname: os.hostname(),
+          username: os.userInfo().username, totalMemory: os.totalmem(), cpuCount: os.cpus().length,
+        }))
+      })
+
+      // API: Process list
+      server.middlewares.use('/local-api/process-list', (_req, res) => {
+        // Simple stub — full process list needs native code
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ processes: [], count: 0, note: 'Full process list available in Tauri build only' }))
+      })
+
+      // API: Screenshot
+      server.middlewares.use('/local-api/screenshot', (_req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Screenshot available in Tauri build only' }))
+      })
+
       // --- SearXNG availability check ---
       let searxngAvailable = false
       const checkSearXNG = () => {

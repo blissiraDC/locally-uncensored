@@ -17,16 +17,13 @@ fn agent_workspace() -> PathBuf {
     dirs::home_dir().unwrap_or_default().join("agent-workspace")
 }
 
-fn validate_path(path: &str) -> Result<PathBuf, String> {
-    if path.contains("..") {
-        return Err("Path traversal not allowed".to_string());
+fn resolve_agent_path(path: &str) -> PathBuf {
+    let p = std::path::Path::new(path);
+    if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        agent_workspace().join(path)
     }
-    let workspace = agent_workspace();
-    let full = workspace.join(path);
-    if !full.starts_with(&workspace) {
-        return Err("Path outside workspace".to_string());
-    }
-    Ok(full)
 }
 
 #[tauri::command]
@@ -105,9 +102,9 @@ pub fn execute_code(
 
 #[tauri::command]
 pub fn file_read(path: String) -> Result<serde_json::Value, String> {
-    let full_path = validate_path(&path)?;
+    let full_path = resolve_agent_path(&path);
     if !full_path.exists() {
-        return Err(format!("File not found: {}", path));
+        return Err(format!("File not found: {}", full_path.display()));
     }
     let content = fs::read_to_string(&full_path)
         .map_err(|e| format!("Read error: {}", e))?;
@@ -116,7 +113,7 @@ pub fn file_read(path: String) -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 pub fn file_write(path: String, content: String) -> Result<serde_json::Value, String> {
-    let full_path = validate_path(&path)?;
+    let full_path = resolve_agent_path(&path);
     if let Some(parent) = full_path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("Create dir: {}", e))?;
     }

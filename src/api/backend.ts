@@ -129,6 +129,16 @@ export async function backendCall<T = any>(
     ollama_search: { path: "/ollama-search" },
     fetch_external: { path: "/local-api/proxy-download" },
     fetch_external_bytes: { path: "/local-api/proxy-download" },
+    // Agent tools (Phase 1 — new commands)
+    shell_execute: { path: "/local-api/shell-execute", method: "POST" },
+    fs_read: { path: "/local-api/fs-read", method: "POST" },
+    fs_write: { path: "/local-api/fs-write", method: "POST" },
+    fs_list: { path: "/local-api/fs-list", method: "POST" },
+    fs_search: { path: "/local-api/fs-search", method: "POST" },
+    fs_info: { path: "/local-api/fs-info", method: "POST" },
+    system_info: { path: "/local-api/system-info" },
+    process_list: { path: "/local-api/process-list" },
+    screenshot: { path: "/local-api/screenshot" },
   };
 
   const endpoint = endpointMap[command];

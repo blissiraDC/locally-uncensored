@@ -1,7 +1,10 @@
 pub mod agent;
 pub mod download;
+pub mod filesystem;
 pub mod install;
 pub mod process;
 pub mod proxy;
 pub mod search;
+pub mod shell;
+pub mod system;
 pub mod whisper;

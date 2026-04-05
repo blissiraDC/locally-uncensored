@@ -9,7 +9,10 @@ import { useRAGStore } from '../stores/ragStore'
 import { useVoiceStore } from '../stores/voiceStore'
 import { retrieveContext } from '../api/rag'
 import { speakStreaming, isSpeechSynthesisSupported, getVoicesAsync } from '../api/voice'
-import { getOllamaTools, getToolPermission, executeAgentTool, AGENT_TOOL_DEFS } from '../api/tool-registry'
+import { toolRegistry } from '../api/mcp'
+import { usePermissionStore } from '../stores/permissionStore'
+// Legacy compat imports (still used by some callers)
+import { getToolPermission, executeAgentTool, AGENT_TOOL_DEFS } from '../api/tool-registry'
 import { getToolCallingStrategy, type ToolCallingStrategy } from '../lib/model-compatibility'
 import { buildHermesToolPrompt, buildHermesToolResult, parseHermesToolCalls, stripToolCallTags, hasToolCallTags } from '../api/hermes-tool-calling'
 import { compactMessages, getModelMaxTokens } from '../lib/context-compaction'
@@ -269,9 +272,13 @@ export function useAgentChat() {
       // Memory injection is non-critical
     }
 
+    // Get effective permissions for this conversation
+    const permissions = usePermissionStore.getState().getEffectivePermissions(convId!)
+
     // Build agent system prompt
+    const hermesToolDefs = toolRegistry.toHermesToolDefs(permissions)
     const agentSystemPrompt = strategy === 'hermes_xml'
-      ? buildHermesToolPrompt(AGENT_TOOL_DEFS) + (systemPrompt ? `\n\n${systemPrompt}` : '')
+      ? buildHermesToolPrompt(hermesToolDefs) + (systemPrompt ? `\n\n${systemPrompt}` : '')
       : buildAgentSystemPrompt(systemPrompt)
 
     // Build messages array
@@ -332,7 +339,7 @@ export function useAgentChat() {
 
         if (strategy === 'native') {
           // ── Native tool calling (works with Ollama, OpenAI, Anthropic) ──
-          const tools: ToolDefinition[] = getOllamaTools()
+          const tools: ToolDefinition[] = toolRegistry.toOpenAITools(permissions)
           const turn = await provider.chatWithTools(modelToUse, agentMessages, tools, chatOptions)
 
           toolCalls = turn.toolCalls
@@ -383,8 +390,9 @@ export function useAgentChat() {
             timestamp: Date.now(),
           }
 
-          // Check permission
-          const permission = getToolPermission(tc.function.name)
+          // Check permission via new registry
+          const permLevel = toolRegistry.getPermissionLevel(tc.function.name, permissions)
+          const permission = permLevel === 'auto' ? 'auto' : 'confirm'
 
           if (permission === 'confirm') {
             agentToolCall.status = 'pending_approval'
@@ -449,7 +457,7 @@ export function useAgentChat() {
 
           // Execute the tool
           const startTime = Date.now()
-          const result = await executeAgentTool(tc.function.name, tc.function.arguments)
+          const result = await toolRegistry.execute(tc.function.name, tc.function.arguments)
           const duration = Date.now() - startTime
 
           // Update block with result

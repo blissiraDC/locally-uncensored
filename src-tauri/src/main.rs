@@ -33,10 +33,22 @@ fn main() {
             // Whisper STT
             commands::whisper::whisper_status,
             commands::whisper::transcribe,
-            // Agent tools
+            // Agent tools (legacy)
             commands::agent::execute_code,
             commands::agent::file_read,
             commands::agent::file_write,
+            // Shell
+            commands::shell::shell_execute,
+            // Filesystem
+            commands::filesystem::fs_read,
+            commands::filesystem::fs_write,
+            commands::filesystem::fs_list,
+            commands::filesystem::fs_search,
+            commands::filesystem::fs_info,
+            // System
+            commands::system::system_info,
+            commands::system::process_list,
+            commands::system::screenshot,
             // Downloads
             commands::download::download_model,
             commands::download::download_progress,

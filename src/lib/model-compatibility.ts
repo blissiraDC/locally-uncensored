@@ -76,13 +76,16 @@ export interface RecommendedModel {
 
 export function getRecommendedAgentModels(): RecommendedModel[] {
   return [
-    { name: 'hermes3:8b', label: 'Hermes 3 8B', reason: 'Uncensored + native tool calling. THE agent model.', hot: true, provider: 'ollama' },
-    { name: 'hermes3:70b', label: 'Hermes 3 70B', reason: 'Maximum power uncensored agent. Needs 48GB+.', hot: true, provider: 'ollama' },
+    // Local — HOT picks
+    { name: 'qwen3.5:35b-a3b', label: 'Qwen 3.5 35B MoE', reason: '35B brain, 3B active. Best agentic + 256K context. SWE-bench leader.', hot: true, provider: 'ollama' },
     { name: 'gemma4:26b', label: 'Gemma 4 26B MoE', reason: '26B brain, runs like 4B. Native tools + vision. Apache 2.0.', hot: true, provider: 'ollama' },
-    { name: 'qwen3-coder:30b', label: 'Qwen3-Coder 30B MoE', reason: '30B brain, 3B active. Built for code + agentic workflows. 256K context.', hot: true, provider: 'ollama' },
-    { name: 'qwen2.5:7b', label: 'Qwen 2.5 7B', reason: 'Fast, reliable tool calling', provider: 'ollama' },
-    { name: 'llama3.1:8b', label: 'Llama 3.1 8B', reason: 'Proven tool calling all-rounder', provider: 'ollama' },
-    { name: 'openai::gpt-4o', label: 'GPT-4o', reason: 'Cloud: powerful tool calling', provider: 'openai' },
-    { name: 'anthropic::claude-sonnet-4-20250514', label: 'Claude Sonnet 4', reason: 'Cloud: fast + smart', provider: 'anthropic' },
+    { name: 'qwen3-coder:30b', label: 'Qwen3-Coder 30B MoE', reason: 'Built for code + agentic workflows. 256K context.', hot: true, provider: 'ollama' },
+    { name: 'hermes3:8b', label: 'Hermes 3 8B', reason: 'Uncensored + native tool calling. Best small agent.', hot: true, provider: 'ollama' },
+    // Local — solid picks
+    { name: 'deepseek-v3.2', label: 'DeepSeek V3.2', reason: 'Frontier reasoning + tool use. Open-source.', provider: 'ollama' },
+    { name: 'glm4.7', label: 'GLM 4.7', reason: 'Strong coding, reasoning, agentic execution.', provider: 'ollama' },
+    // Cloud
+    { name: 'anthropic::claude-opus-4-20250514', label: 'Claude Opus 4', reason: 'Cloud: most capable agent model.', provider: 'anthropic' },
+    { name: 'anthropic::claude-sonnet-4-20250514', label: 'Claude Sonnet 4', reason: 'Cloud: fast + smart tool calling.', provider: 'anthropic' },
   ]
 }

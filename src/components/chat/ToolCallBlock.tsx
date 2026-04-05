@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, Search, Globe, FileText, FileEdit, Terminal, Image, Loader2, Check, X, Clock, AlertCircle } from 'lucide-react'
+import { ChevronDown, Search, Globe, FileText, FileEdit, Terminal, Image, Loader2, Check, X, Clock, AlertCircle, FolderOpen, Cpu, Monitor, GitBranch } from 'lucide-react'
 import type { AgentToolCall } from '../../types/agent-mode'
 
 interface Props {
@@ -14,8 +14,15 @@ const TOOL_ICONS: Record<string, typeof Search> = {
   web_fetch: Globe,
   file_read: FileText,
   file_write: FileEdit,
+  file_list: FolderOpen,
+  file_search: Search,
   code_execute: Terminal,
+  shell_execute: Terminal,
+  system_info: Cpu,
+  process_list: Cpu,
+  screenshot: Monitor,
   image_generate: Image,
+  run_workflow: GitBranch,
 }
 
 const TOOL_COLORS: Record<string, string> = {
@@ -23,8 +30,15 @@ const TOOL_COLORS: Record<string, string> = {
   web_fetch: 'text-cyan-400',
   file_read: 'text-gray-400',
   file_write: 'text-amber-400',
+  file_list: 'text-gray-400',
+  file_search: 'text-gray-400',
   code_execute: 'text-green-400',
+  shell_execute: 'text-green-400',
+  system_info: 'text-purple-400',
+  process_list: 'text-purple-400',
+  screenshot: 'text-pink-400',
   image_generate: 'text-purple-400',
+  run_workflow: 'text-amber-400',
 }
 
 const STATUS_ICONS = {
@@ -46,7 +60,7 @@ export function ToolCallBlock({ toolCall, onApprove, onReject }: Props) {
 
   return (
     <div className="mb-1">
-      {/* Inline tool call line — no box, just text */}
+      {/* Inline tool call line */}
       <button
         onClick={() => setOpen(!open)}
         className="flex items-center gap-1.5 py-0.5 text-left hover:opacity-80 transition-opacity w-full"
@@ -83,14 +97,14 @@ export function ToolCallBlock({ toolCall, onApprove, onReject }: Props) {
           >
             <div className="pl-5 pb-2 space-y-1.5">
               {/* Arguments */}
-              <pre className="text-[0.62rem] leading-relaxed text-gray-500 bg-black/[0.02] dark:bg-white/[0.02] rounded px-2 py-1 overflow-x-auto">
+              <pre className="text-[0.62rem] leading-relaxed text-gray-500 bg-black/[0.02] dark:bg-white/[0.02] rounded px-2 py-1 overflow-x-auto scrollbar-thin">
                 {JSON.stringify(toolCall.args, null, 2)}
               </pre>
 
-              {/* Result */}
+              {/* Result — full content, scrollable */}
               {toolCall.result && (
-                <pre className="text-[0.62rem] leading-relaxed text-gray-400 bg-black/[0.02] dark:bg-white/[0.02] rounded px-2 py-1 overflow-x-auto max-h-[150px]">
-                  {toolCall.result.length > 500 ? toolCall.result.slice(0, 500) + '\n...' : toolCall.result}
+                <pre className="text-[0.62rem] leading-relaxed text-gray-400 bg-black/[0.02] dark:bg-white/[0.02] rounded px-2 py-1 overflow-auto scrollbar-thin max-h-[300px]">
+                  {toolCall.result}
                 </pre>
               )}
 

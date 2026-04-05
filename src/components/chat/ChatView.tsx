@@ -14,12 +14,13 @@ import { ErrorBoundary } from '../ui/ErrorBoundary'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { FEATURE_FLAGS } from '../../lib/constants'
 import { isAgentCompatible } from '../../lib/model-compatibility'
-import { FileText, Bot, User, ChevronDown, Download, GitCompareArrows } from 'lucide-react'
+import { FileText, Bot, User, ChevronDown, Download } from 'lucide-react'
 import { TokenCounter } from './TokenCounter'
 import { MemoryDebugToggle } from './MemoryDebugPanel'
 import { ABCompare } from './ABCompare'
 import { useCompareStore } from '../../stores/compareStore'
 import { exportConversation } from '../../lib/chat-export'
+import { PermissionOverrideBar } from './PermissionOverrideBar'
 
 export function ChatView() {
   const { sendMessage, stopGeneration, isGenerating, isLoadingModel, regenerateMessage, editAndResend, pendingApproval, approveToolCall, rejectToolCall } = useChat()
@@ -44,7 +45,6 @@ export function ChatView() {
     activeConversationId ? s.agentModeActive[activeConversationId] ?? false : false
   )
   const isComparing = useCompareStore((s) => s.isComparing)
-  const setComparing = useCompareStore((s) => s.setComparing)
 
   // A/B Compare mode takes over the entire view
   if (isComparing) {
@@ -183,16 +183,6 @@ export function ChatView() {
                   )}
                 </button>
 
-                {/* A/B Compare */}
-                <button
-                  onClick={() => setComparing(true)}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-gray-300 dark:border-white/15 hover:border-gray-400 dark:hover:border-white/25 text-gray-500 dark:text-gray-400 transition-colors text-xs"
-                  title="A/B Compare — test two models side by side"
-                >
-                  <GitCompareArrows size={13} />
-                  <span className="font-medium">A/B</span>
-                </button>
-
                 {/* Agent Mode (Beta) */}
                 {FEATURE_FLAGS.AGENT_MODE && (
                   <div className={
@@ -212,6 +202,9 @@ export function ChatView() {
                   </div>
                 )}
               </div>
+
+              {/* Permission Override Bar — shown when agent mode is active */}
+              {isAgentActive && <PermissionOverrideBar />}
 
               <MessageList
                 isGenerating={isGenerating}

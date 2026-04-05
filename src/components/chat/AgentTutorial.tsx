@@ -120,6 +120,21 @@ export function AgentTutorial({ open, onClose, onComplete }: Props) {
           </motion.div>
         </AnimatePresence>
 
+        {/* Don't show again — visible on last step */}
+        {isLast && (
+          <label className="flex items-center justify-center gap-2 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={true}
+              disabled
+              className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-green-500 focus:ring-green-500/30 focus:ring-offset-0 opacity-50"
+            />
+            <span className="text-[0.65rem] text-gray-500 select-none">
+              Don't show this again
+            </span>
+          </label>
+        )}
+
         {/* Navigation */}
         <div className="flex items-center justify-between pt-2">
           <button

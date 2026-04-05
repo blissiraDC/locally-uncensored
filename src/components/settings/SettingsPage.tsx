@@ -9,10 +9,11 @@ import { useVoiceStore } from '../../stores/voiceStore'
 import { checkWhisperAvailable } from '../../api/voice'
 import { useAgentModeStore } from '../../stores/agentModeStore'
 import { FEATURE_FLAGS } from '../../lib/constants'
-import { AGENT_TOOL_DEFS } from '../../api/tool-registry'
 import { getRecommendedAgentModels } from '../../lib/model-compatibility'
 import { MemorySettings } from './MemorySettings'
 import { ProviderSettings } from './ProviderConfig'
+import { PermissionSettings } from './PermissionSettings'
+import { MCPServerSettings } from './MCPServerSettings'
 import { WorkflowList } from '../agents/WorkflowList'
 import { WorkflowBuilder } from '../agents/WorkflowBuilder'
 import { useUpdateStore } from '../../stores/updateStore'
@@ -228,35 +229,9 @@ export function SettingsPage() {
 
         {/* ── Agent Mode ─────────────────────────────── */}
         {FEATURE_FLAGS.AGENT_MODE && (
-          <Section title="Agent Mode (Beta)">
-            <div className="flex items-center justify-between">
-              <span className="text-[0.7rem] text-gray-500">Sandbox</span>
-              <div className="flex gap-1">
-                {(['restricted', 'full'] as const).map(level => (
-                  <button
-                    key={level}
-                    onClick={() => useAgentModeStore.getState().setSandboxLevel(level)}
-                    className={`px-2 py-0.5 rounded text-[0.6rem] transition-colors ${
-                      useAgentModeStore.getState().sandboxLevel === level ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    {level === 'restricted' ? 'Restricted' : 'Full Access'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-0.5">
-              <span className="text-[0.6rem] text-gray-500">Tools</span>
-              {AGENT_TOOL_DEFS.map((tool) => (
-                <div key={tool.name} className="flex items-center justify-between py-0.5">
-                  <span className="text-[0.65rem] text-gray-400 font-mono">{tool.name}</span>
-                  <span className={`text-[0.55rem] ${tool.permission === 'auto' ? 'text-green-500' : 'text-amber-400'}`}>
-                    {tool.permission === 'auto' ? 'auto' : 'approval'}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="space-y-0.5">
+          <Section title="Agent Permissions">
+            <PermissionSettings />
+            <div className="space-y-0.5 mt-3 pt-3 border-t border-white/5">
               <span className="text-[0.6rem] text-gray-500">Recommended Models</span>
               {getRecommendedAgentModels().map((m) => (
                 <div key={m.name} className="flex items-center gap-1.5 py-0.5">
@@ -279,6 +254,13 @@ export function SettingsPage() {
         {FEATURE_FLAGS.AGENT_WORKFLOWS && (
           <Section title="Agent Workflows">
             <WorkflowSection />
+          </Section>
+        )}
+
+        {/* ── MCP Servers ─────────────────────────────── */}
+        {FEATURE_FLAGS.AGENT_MODE && (
+          <Section title="MCP Servers">
+            <MCPServerSettings />
           </Section>
         )}
 

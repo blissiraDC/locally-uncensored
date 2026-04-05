@@ -12,15 +12,18 @@
 
 import type { AgentToolDef } from '../types/agent-mode'
 
+// Generic tool shape accepted by the prompt builder
+type ToolLike = { name: string; description: string; parameters?: any; inputSchema?: any }
+
 // ── Build System Prompt with Tool Definitions ───────────────────
 
-export function buildHermesToolPrompt(tools: AgentToolDef[]): string {
+export function buildHermesToolPrompt(tools: (AgentToolDef | ToolLike)[]): string {
   const toolDefs = tools.map((t) => JSON.stringify({
     type: 'function',
     function: {
       name: t.name,
       description: t.description,
-      parameters: t.parameters,
+      parameters: (t as any).inputSchema || (t as any).parameters,
     },
   })).join('\n')
 
