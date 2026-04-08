@@ -1,7 +1,7 @@
 # Locally Uncensored — Developer Guide
 
 ## Project Overview
-Desktop AI app (Tauri + React + TypeScript) for local LLM chat, image and video generation via ComfyUI.
+Plug and Play for the Mass Desktop AI app (Tauri + React + TypeScript) for local LLM chat, image and video generation via ComfyUI.
 - **Repo:** PurpleDoubleD/locally-uncensored (35+ stars)
 - **Current version:** v2.2.3 (released 2026-04-05)
 - **Active branch:** `full-comfyui-fix` — v2.3.0 ComfyUI Plug & Play feature (DO NOT PUSH until ready)
@@ -62,36 +62,16 @@ src-tauri/src/commands/      — Rust commands: install, process, download, prox
 31. **AnimateDiff v3 wrong file** — was downloading adapter (97 MB) instead of motion model (1.6 GB). Fixed URL to v3_sd15_mm.ckpt
 32. **Onboarding typo** — `qwen2.5-abliterated` doesn't exist on Ollama, fixed to `qwen2.5-abliterate`
 33. **All 30 Ollama models verified**, all 24 HF GGUF URLs verified, all 20 ComfyUI bundle URLs verified
+34. **HuggingFace GGUF as single download source** — replaced Ollama pull with HF GGUF for ALL text model downloads. Works with all 23 provider presets. Removed Ollama/HF tab switcher, VariantPullButton, Ollama search. Unified getUncensoredTextModels (34 GGUFs) + getMainstreamTextModels (30 GGUFs). Onboarding uses startModelDownloadToPath instead of pullModel. All 64 URLs verified HTTP 200. Net -238 lines. pullModel() preserved for chat page Ollama pulls.
 
 ### What's LEFT to finish v2.3.0:
 1. **Tauri .exe E2E** — run the built .exe (not dev server), test all 3 download flows end-to-end in production mode
-2. **HuggingFace as primary download source** — replace Ollama-only text downloads with HF GGUF for all providers (LM Studio compatibility). Auto-detect provider model directory.
-
-### What was FIXED (download overhaul):
-1. **install_custom_node camelCase bug** — Tauri 2 expects camelCase args (repoUrl/nodeName), was sending snake_case. Fixed in discover.ts + vite.config.ts
-2. **installBundleComplete per-file error handling** — single file failure no longer stops all downloads. Each file has independent try/catch
-3. **"exists" status tracking** — files already on disk now properly marked as complete in downloadStore via comfyui-download-exists event
-4. **Download UI consolidated** — removed duplicate progress display from DiscoverModels, all downloads exclusively shown in DownloadBadge (header)
-5. **AnimateDiff subfolder bug** — models_dir() now routes custom_nodes/ paths to ComfyUI root instead of models/
-6. **Broken URLs fixed** — Pony Diffusion (401) replaced with DreamShaper XL Turbo, SigCLIP (404) fixed filename
-7. **Image bundle workflow types** — all were 'wan', now correctly sdxl/flux/flux2
-8. **Dev-mode endpoints added** — detect_model_path + download_model_to_path for HF GGUF downloads
-9. **All 38 ComfyUI URLs verified HTTP 200, all 24 HF GGUF URLs verified, all 29 Ollama models exist**
-10. **All 19 bundles tested in live app — 0 errors, all files confirmed on disk**
-11. **setHfModels runtime error** — handleRefresh() called undefined setHfModels(). Fixed: HF refresh now clears search + re-detects model path
-12. **Dev-mode detect-model-path fallback** — returned null without LM Studio. Now falls back to ~/locally-uncensored/models/ (parity with Rust)
-13. **isInstalled prefix-match for Ollama** — `hermes3` now matches installed `hermes3:8b`. Was: exact match only, never showed INSTALLED badge
-14. **pullModel fetchModels error isolation** — fetchModels() error after completePull() no longer swallows the entire success path
-15. **Partial download "exists" bug** — files only partially downloaded (e.g. 36 MB of 10 GB) were falsely reported as complete. Added expectedBytes size validation (>= 90% threshold) to download_model, download_model_to_path (Rust) and dev-server. Incomplete files now get re-downloaded with resume.
-16. **Double-click guard on bundle install** — clicking Install twice no longer starts duplicate downloads
-17. **handleRefresh race condition** — loading flag was cleared before async detectProviderModelPath resolved
-18. **Dev-mode fetchModels try-catch** — pullModel completion in dev mode could crash if Ollama stopped during fetchModels
 
 ### Files modified in this branch (30+ files):
 - `src/api/comfyui.ts` — 7 new ModelTypes, COMPONENT_REGISTRY, uploadImage(), inputImage in VideoParams
 - `src/api/dynamic-workflow.ts` — 7 new strategies, 5 wrapper builders, inputImage support in SVD/FramePack
 - `src/api/comfyui-nodes.ts` — 30+ new nodes in categorization mapping
-- `src/api/discover.ts` — 14 video + 6 image bundles, CUSTOM_NODE_REGISTRY, installBundleComplete(), uncensored flags, ALL sizeGB verified
+- `src/api/discover.ts` — 14 video + 6 image bundles, CUSTOM_NODE_REGISTRY, installBundleComplete(), uncensored flags, ALL sizeGB verified, HF GGUF unified text model lists (34 uncensored + 30 mainstream), removed Ollama search/fetch functions
 - `src/api/backend.ts` — install_custom_node endpoint mapping, openExternal() for system browser
 - `src/api/preflight.ts` — extended needsUnet check for all new model types
 - `src-tauri/src/commands/install.rs` — install_custom_node command (camelCase params)
@@ -103,12 +83,12 @@ src-tauri/src/commands/      — Rust commands: install, process, download, prox
 - `src/components/create/WorkflowCard.tsx` — openExternal for source links
 - `src/components/chat/MarkdownRenderer.tsx` — openExternal for all chat links
 - `src/components/layout/DownloadBadge.tsx` — unified: text + ComfyUI downloads, bundle grouping, retry buttons, speed display
-- `src/components/models/DiscoverModels.tsx` — VRAM tier tabs, downloadStore integration, retry for failed bundles, openExternal, no double "Installed"
-- `src/components/onboarding/Onboarding.tsx` — comfyui step, drag region, accent dots, VRAM filtering, tool calling badges, re-scan, openExternal
+- `src/components/models/DiscoverModels.tsx` — VRAM tier tabs, downloadStore integration, retry for failed bundles, openExternal, no double "Installed", removed Ollama/HF tab switcher + VariantPullButton + useModels dependency
+- `src/components/onboarding/Onboarding.tsx` — comfyui step, drag region, accent dots, VRAM filtering, tool calling badges, re-scan, openExternal, GGUF downloads via startModelDownloadToPath instead of pullModel
 - `src/components/settings/SettingsPage.tsx` — ComfyUISettings component
 - `src/stores/providerStore.ts` — LM Studio default disabled (auto-detect only)
 - `src/stores/updateStore.ts` — openExternal for release page
-- `src/lib/constants.ts` — OnboardingModel: vramGB, uncensored, agent fields, qwen2.5-abliterate typo fix
+- `src/lib/constants.ts` — OnboardingModel: vramGB, uncensored, agent fields, qwen2.5-abliterate typo fix, HF GGUF downloadUrl/filename/sizeGB for all 17 onboarding models
 - `src/hooks/useCreate.ts` — i2vImage pass-through to workflow builder
 - `src/lib/constants.ts` — OnboardingModel: vramGB, uncensored, agent fields + mainstream models
 - `src/stores/createStore.ts` — i2vImage state
@@ -122,7 +102,7 @@ src-tauri/src/commands/      — Rust commands: install, process, download, prox
 - `src/api/__tests__/comfyui-integration.test.ts` — full pipeline Bundle→Strategy verification (36 tests)
 
 ## Conventions
-- Language: German comments welcome, code in English
+- Language: Englisch only
 - Commits: descriptive, semantic (`feat:`, `fix:`, `docs:`)
 - No emojis in code or UI
 - Run `npx vitest run` before committing
@@ -132,9 +112,6 @@ src-tauri/src/commands/      — Rust commands: install, process, download, prox
 - Tauri IPC: `backendCall()` from `src/api/backend.ts`
 - Downloads: Use `downloadStore` for all ComfyUI downloads (not component-local state)
 
-## Reference Docs (on Desktop)
-- `C:\Users\ddrob\Desktop\LU_UPDATE_PLAN.md` — Full v2.3.0 plan
-- `C:\Users\ddrob\Desktop\LU_VIDEO_MODELS_WORKFLOW_RESEARCH.md` — Detailed node chains for all 16 models
 
 ## Pre-existing test failures (NOT caused by our changes):
 - `tool-registry.test.ts` — counts are outdated (13 tools vs expected 7)
