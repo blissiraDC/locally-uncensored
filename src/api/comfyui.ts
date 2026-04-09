@@ -606,8 +606,11 @@ async function findAnimateDiffModel(): Promise<string> {
 export async function submitWorkflow(workflow: Record<string, any>, clientId?: string): Promise<string> {
   const payload: Record<string, any> = { prompt: workflow }
   if (clientId) payload.client_id = clientId
-  const res = await localFetch(comfyuiUrl('/prompt'), {
+  // Use direct fetch to ComfyUI (bypasses Tauri proxy issues, CORS OK with --enable-cors-header *)
+  const url = 'http://localhost:8188/prompt'
+  const res = await fetch(url, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
   if (!res.ok) {
@@ -616,7 +619,8 @@ export async function submitWorkflow(workflow: Record<string, any>, clientId?: s
     try {
       const errData = JSON.parse(rawText)
       const parts: string[] = []
-      if (errData.error?.message) parts.push(errData.error.message)
+      if (typeof errData.error === 'string') parts.push(errData.error)
+      else if (errData.error?.message) parts.push(errData.error.message)
       if (errData.node_errors) {
         for (const [nodeId, data] of Object.entries(errData.node_errors) as [string, any][]) {
           const errs = data.errors?.map((e: any) => e.message || e.details).join(', ') || 'unknown'
@@ -637,14 +641,15 @@ export async function submitWorkflow(workflow: Record<string, any>, clientId?: s
 
 export async function cancelGeneration(): Promise<void> {
   try {
-    await localFetch(comfyuiUrl('/interrupt'), { method: 'POST' })
+    await fetch('http://localhost:8188/interrupt', { method: 'POST' })
   } catch { /* best effort */ }
 }
 
 export async function freeMemory(): Promise<void> {
   try {
-    await localFetch(comfyuiUrl('/free'), {
+    await fetch('http://localhost:8188/free', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ unload_models: true, free_memory: true }),
     })
   } catch { /* best effort */ }
@@ -652,7 +657,8 @@ export async function freeMemory(): Promise<void> {
 
 export async function getHistory(promptId: string): Promise<any> {
   try {
-    const res = await localFetch(comfyuiUrl(`/history/${promptId}`))
+    // Use direct fetch (CORS OK with --enable-cors-header *)
+    const res = await fetch(`http://localhost:8188/history/${promptId}`)
     if (!res.ok) return null
     const data = await res.json()
     return data[promptId] ?? null
@@ -746,22 +752,25 @@ export async function buildFluxImgWorkflow(params: GenerateParams): Promise<Reco
   const clip = await findMatchingCLIP(modelType)
   const clipType = modelType === 'flux2' ? 'flux2' : 'flux'
 
+  const latentNode = modelType === 'flux2' ? 'EmptyFlux2LatentImage' : 'EmptySD3LatentImage'
+
   return {
     '1': { class_type: 'UNETLoader', inputs: { unet_name: params.model, weight_dtype: 'default' } },
     '2': { class_type: 'CLIPLoader', inputs: { clip_name: clip, type: clipType, device: 'default' } },
     '3': { class_type: 'VAELoader', inputs: { vae_name: vae } },
     '4': { class_type: 'CLIPTextEncode', inputs: { text: params.prompt, clip: ['2', 0] } },
-    '5': { class_type: 'EmptySD3LatentImage', inputs: { width: params.width, height: params.height, batch_size: params.batchSize } },
-    '6': {
+    '5': { class_type: 'CLIPTextEncode', inputs: { text: '', clip: ['2', 0] } },
+    '6': { class_type: latentNode, inputs: { width: params.width, height: params.height, batch_size: params.batchSize } },
+    '7': {
       class_type: 'KSampler',
       inputs: {
-        model: ['1', 0], positive: ['4', 0], negative: ['4', 0], latent_image: ['5', 0],
+        model: ['1', 0], positive: ['4', 0], negative: ['5', 0], latent_image: ['6', 0],
         seed, steps: params.steps, cfg: params.cfgScale,
         sampler_name: params.sampler, scheduler: params.scheduler, denoise: 1.0,
       },
     },
-    '7': { class_type: 'VAEDecode', inputs: { samples: ['6', 0], vae: ['3', 0] } },
-    '8': { class_type: 'SaveImage', inputs: { images: ['7', 0], filename_prefix: 'locally_uncensored' } },
+    '8': { class_type: 'VAEDecode', inputs: { samples: ['7', 0], vae: ['3', 0] } },
+    '9': { class_type: 'SaveImage', inputs: { images: ['8', 0], filename_prefix: 'locally_uncensored' } },
   }
 }
 

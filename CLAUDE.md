@@ -64,8 +64,12 @@ src-tauri/src/commands/      — Rust commands: install, process, download, prox
 33. **All 30 Ollama models verified**, all 24 HF GGUF URLs verified, all 20 ComfyUI bundle URLs verified
 34. **HuggingFace GGUF as single download source** — replaced Ollama pull with HF GGUF for ALL text model downloads. Works with all 23 provider presets. Removed Ollama/HF tab switcher, VariantPullButton, Ollama search. Unified getUncensoredTextModels (34 GGUFs) + getMainstreamTextModels (30 GGUFs). Onboarding uses startModelDownloadToPath instead of pullModel. All 64 URLs verified HTTP 200. Net -238 lines. pullModel() preserved for chat page Ollama pulls.
 
+35. **E2E Image+Video Gen fixes (6 bugs)** — Error handling shows real ComfyUI errors (not generic HTTP 500). Direct fetch fallback when Tauri proxy fails. Legacy builder uses correct FLUX 2 nodes (EmptyFlux2LatentImage + separate negative prompt). Stale localStorage model names auto-reset against current ComfyUI list. Polling heartbeat catches missed WebSocket completion events. ComfyUI critical functions (submit/history/cancel/free) use direct fetch bypassing broken Tauri proxy.
+36. **tqdm crash fix confirmed** — TQDM_DISABLE=1 env var in start_comfyui/auto_start_comfyui prevents KSampler [Errno 22] crash. Both image and video KSampler confirmed working in .exe.
+
 ### What's LEFT to finish v2.3.0:
-1. **Tauri .exe E2E** — run the built .exe (not dev server), test all 3 download flows end-to-end in production mode
+1. **Tauri proxy_localhost investigation** — reqwest in Tauri subprocess can't reach localhost. Direct fetch workaround in place but root cause unknown. Low priority since workaround works.
+2. **LTX VAEDecode reference** — dynamic-workflow.ts line 263: vaeSourceId incorrectly points to UNETLoader output for LTX strategy. Fix when LTX model is installed for testing.
 
 ### Files modified in this branch (30+ files):
 - `src/api/comfyui.ts` — 7 new ModelTypes, COMPONENT_REGISTRY, uploadImage(), inputImage in VideoParams

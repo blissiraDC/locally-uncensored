@@ -222,6 +222,8 @@ pub fn start_comfyui(state: State<'_, AppState>) -> Result<serde_json::Value, St
     let mut cmd = Command::new(python);
     cmd.args(["main.py", "--listen", "127.0.0.1", "--port", "8188", "--enable-cors-header", "*"])
         .current_dir(&comfy_path)
+        .env("TQDM_DISABLE", "1")
+        .env("PYTHONUNBUFFERED", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -412,6 +414,8 @@ pub fn auto_start_comfyui(state: &AppState) {
             let mut cmd = Command::new(&state.python_bin);
             cmd.args(["main.py", "--listen", "127.0.0.1", "--port", "8188", "--enable-cors-header", "*"])
                 .current_dir(&path)
+                .env("TQDM_DISABLE", "1")
+                .env("PYTHONUNBUFFERED", "1")
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped());

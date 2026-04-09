@@ -41,7 +41,7 @@ export async function localFetch(
     });
   }
 
-  // In Tauri: route through Rust to bypass CORS
+  // In Tauri: route through Rust to bypass CORS, with direct fetch fallback
   const invoke = await getInvoke();
   const method = options?.method || "GET";
 
@@ -53,8 +53,23 @@ export async function localFetch(
     }) as string;
 
     return new Response(text, { status: 200, headers: { "Content-Type": "application/json" } });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), { status: 500 });
+  } catch (proxyErr) {
+    const proxyErrMsg = String(proxyErr)
+    console.warn('[localFetch] Proxy failed, trying direct fetch:', proxyErrMsg)
+
+    // Fallback: try direct fetch (works when ComfyUI has --enable-cors-header *)
+    try {
+      return await fetch(url, {
+        method,
+        headers: options?.body ? { "Content-Type": "application/json" } : undefined,
+        body: options?.body,
+        signal: options?.signal,
+      });
+    } catch (fetchErr) {
+      // Both failed — return the proxy error with details preserved
+      const detail = proxyErrMsg || String(fetchErr)
+      return new Response(JSON.stringify({ error: detail }), { status: 500 });
+    }
   }
 }
 

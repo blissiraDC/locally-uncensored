@@ -94,15 +94,24 @@ export function useCreate() {
       if (imgModels.length > 0 && !state.imageModel) {
         state.setImageModel(imgModels[0].name, imgModels[0].type)
       }
-      if (vidModels.length > 0 && !state.videoModel) {
-        state.setVideoModel(vidModels[0].name)
+      if (vidModels.length > 0) {
+        if (!state.videoModel || !vidModels.find(m => m.name === state.videoModel)) {
+          if (state.videoModel) console.warn(`[useCreate] Persisted videoModel "${state.videoModel}" not found, resetting to ${vidModels[0].name}`)
+          state.setVideoModel(vidModels[0].name)
+        }
       }
       // Always re-sync model type for currently selected model (fixes stale type after restart)
       if (state.imageModel && imgModels.length > 0) {
         const current = imgModels.find(m => m.name === state.imageModel)
-        if (current && current.type !== state.imageModelType) {
-          console.log(`[useCreate] Fixing model type: ${state.imageModelType} -> ${current.type}`)
-          state.setImageModel(state.imageModel, current.type)
+        if (current) {
+          if (current.type !== state.imageModelType) {
+            console.log(`[useCreate] Fixing model type: ${state.imageModelType} -> ${current.type}`)
+            state.setImageModel(state.imageModel, current.type)
+          }
+        } else {
+          // Persisted model no longer exists in ComfyUI — reset to first available
+          console.warn(`[useCreate] Persisted imageModel "${state.imageModel}" not found in ComfyUI, resetting to ${imgModels[0].name}`)
+          state.setImageModel(imgModels[0].name, imgModels[0].type)
         }
       }
       // Run preflight check after models are loaded
@@ -247,11 +256,61 @@ export function useCreate() {
             reject(new Error(`Generation timed out after ${Math.round(maxTime / 60000)} minutes`))
           }, maxTime)
 
-          // Heartbeat: check ComfyUI every 30s
+          // Heartbeat: check ComfyUI every 10s + poll for completion (catches missed WS events)
+          let completionHandled = false
           const heartbeat = setInterval(async () => {
+            if (completionHandled) return
             const alive = await checkComfyConnection()
-            if (!alive) { cleanup(); reject(new Error('ComfyUI stopped responding during generation')) }
-          }, 30000)
+            if (!alive) { cleanup(); reject(new Error('ComfyUI stopped responding during generation')); return }
+            // Poll history to catch completion if WebSocket event was missed
+            try {
+              const history = await getHistory(promptId)
+              if (!history) return
+              const statusStr = history.status?.status_str
+              if (statusStr === 'success') {
+                completionHandled = true
+                console.log('[useCreate] Completion detected via polling (WS event missed)')
+                cleanup()
+                useCreateStore.getState().setProgressPhase('complete')
+                setProgress(95, 'Fetching results...')
+                const messages: [string, any][] = history.status?.messages ?? []
+                const startMsg = messages.find(([t]: [string, any]) => t === 'execution_start')
+                const endMsg = messages.find(([t]: [string, any]) => t === 'execution_success')
+                const comfyTime = startMsg?.[1]?.timestamp && endMsg?.[1]?.timestamp
+                  ? ((endMsg[1].timestamp - startMsg[1].timestamp) / 1000).toFixed(1) : null
+                setProgress(100, 'Complete!')
+                useCreateStore.getState().setLastGenTime(comfyTime ? `${comfyTime}s` : null)
+                const outputs = history.outputs ?? {}
+                let found = false
+                for (const nodeId of Object.keys(outputs)) {
+                  const nodeOutput = outputs[nodeId]
+                  const files: ComfyUIOutput[] = [
+                    ...(nodeOutput.images ?? []), ...(nodeOutput.gifs ?? []), ...(nodeOutput.videos ?? []),
+                  ]
+                  for (const file of files) {
+                    found = true
+                    addToGallery({
+                      id: uuid(), type: mode,
+                      filename: file.filename, subfolder: file.subfolder ?? '',
+                      prompt, negativePrompt, model: activeModel,
+                      modelType: mode === 'image' ? imageModelType : (videoModelsList.find(m => m.name === activeModel)?.type ?? 'wan'),
+                      seed: seed === -1 ? 0 : seed,
+                      steps, cfgScale, sampler, scheduler, width, height, batchSize,
+                      createdAt: Date.now(), builderUsed,
+                    })
+                  }
+                }
+                if (!found) setError('Generation completed but no output was produced.')
+                resolve()
+              } else if (statusStr === 'error') {
+                completionHandled = true
+                cleanup()
+                const msgs = history.status?.messages ?? []
+                const errMsg = msgs.find(([t]: [string, any]) => t === 'execution_error')
+                reject(new Error(errMsg?.[1]?.exception_message || 'ComfyUI execution error'))
+              }
+            } catch { /* polling failure is non-fatal */ }
+          }, 10000)
 
           let abortCheck: ReturnType<typeof setInterval> | null = null
 
@@ -303,6 +362,8 @@ export function useCreate() {
                 break
               }
               case 'execution_complete': {
+                if (completionHandled) break
+                completionHandled = true
                 cleanup()
                 st.setProgressPhase('complete')
                 setProgress(95, 'Fetching results...')
