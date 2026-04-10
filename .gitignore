@@ -29,27 +29,15 @@ src-tauri/target/
 # Environment
 .env
 
-# Claude Code
+# Internal
 .claude/
-
-# Private/internal docs (not for public repo)
+.internal/
 CLAUDE.md
-MARKETING_PLAN.md
-MARKET_RESEARCH*.md
-PROMOTION_PLAN.md
-ROADMAP*.md
-marketing/
-logo-concepts/
-landing-page/
-docs/blog/devto-*.md
-docs/reddit-*.md
-docs/screenshots/marketing_*
+*.private.*
 
-# Temp scripts
-find_shield*.py
-replace_shield.py
-scripts/analyze_banner.py
-scripts/replace_logo.py
+# Temp
+*.tmp
+scripts/*.py
 
 # Test artifacts
 codex-api/
