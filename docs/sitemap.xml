@@ -44,4 +44,36 @@
   </url>
 
 
+
+  <!-- Dev.to Clickbait Articles (April 10, 2026) -->
+  <url>
+    <loc>https://dev.to/purpledoubled/the-fbi-can-read-your-chatgpt-history-they-cant-read-mine-21ed</loc>
+    <lastmod>2026-04-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://dev.to/purpledoubled/i-cancelled-chatgpt-midjourney-and-copilot-heres-the-0month-stack-that-replaced-all-three-30hn</loc>
+    <lastmod>2026-04-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://dev.to/purpledoubled/france-is-ditching-windows-for-linux-your-ai-should-be-next-4le9</loc>
+    <lastmod>2026-04-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://dev.to/purpledoubled/image-to-image-with-local-ai-models-which-model-for-what-and-how-denoise-strength-actually-works-5770</loc>
+    <lastmod>2026-04-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://dev.to/purpledoubled/i-generated-ai-video-on-a-gtx-1660-heres-what-it-actually-takes-2i6l</loc>
+    <lastmod>2026-04-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
 </urlset>
