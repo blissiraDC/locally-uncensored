@@ -4,9 +4,9 @@
 
 # Locally Uncensored
 
-**Plug & Play Local AI — Chat, Code, Images, Video. All in one.**
+**Generate anything — text, images, video. Locally. Uncensored.**
 
-No cloud. No censorship. No data collection. Auto-detects 12 local backends. Your AI, your rules.
+No cloud. No data collection. No API keys. Auto-detects 12 local backends. Your AI, your rules.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![GitHub stars](https://img.shields.io/github/stars/PurpleDoubleD/locally-uncensored?style=social)](https://github.com/PurpleDoubleD/locally-uncensored/stargazers)
@@ -16,7 +16,7 @@ No cloud. No censorship. No data collection. Auto-detects 12 local backends. You
 
 <img src="docs/demo.gif" alt="Locally Uncensored Demo" width="700">
 
-*Chat with AI, code with Codex, generate images, create videos — all running locally on your machine.*
+*The only desktop app that runs AI chat, image, and video generation — locally, one click, no cloud.*
 
 [Download](#-download) · [Features](#-features) · [Quick Start](#-quick-start) · [Why This App?](#-why-locally-uncensored) · [Roadmap](#-roadmap)
 

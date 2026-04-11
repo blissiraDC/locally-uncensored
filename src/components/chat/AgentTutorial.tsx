@@ -13,7 +13,7 @@ const STEPS = [
   {
     title: 'Welcome to Agent Mode',
     description: 'Your AI can now use tools to take action — search the web, read and write files, execute code, and generate images. All locally, all uncensored.',
-    tagline: 'No filters, no limits — your AI, your rules.',
+    tagline: 'Generate anything — text, images, video. Locally. Uncensored.',
     accent: 'bg-green-500',
   },
   {
