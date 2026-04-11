@@ -143,6 +143,8 @@ Download the installer from [Releases](https://github.com/PurpleDoubleD/locally-
 
 ## Quick Start
 
+> **New to Locally Uncensored?** Read the [Getting Started Guide](https://locallyuncensored.com/guide/) with screenshots for every step.
+
 ### From Source
 
 ```bash
