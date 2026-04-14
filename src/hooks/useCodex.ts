@@ -17,6 +17,7 @@ import { isThinkingCompatible } from '../lib/model-compatibility'
 import type { ChatMessage, ToolCall, ToolDefinition } from '../api/providers/types'
 import { executeParallel, applyResultToToolCall, type ExecutionRequest } from '../api/agents/tool-executor'
 import { useToolAuditStore } from '../stores/toolAuditStore'
+import { makeInTurnCacheLookup } from '../api/agents/in-turn-cache'
 
 const CODEX_SYSTEM_PROMPT = `You are Codex, an autonomous coding agent inside Locally Uncensored. You execute coding tasks by reading files, writing code, and running shell commands. You MUST use tools to interact with the filesystem — never guess file contents.
 
@@ -151,6 +152,9 @@ export function useCodex() {
     codexStore.setThreadStatus(convId, 'running')
 
     let fullContent = ''
+
+    // Phase 6: pin turn start so in-turn cache scopes to this user prompt.
+    const turnStartMs = Date.now()
 
     try {
       // Agent loop — max 20 iterations
@@ -314,6 +318,7 @@ export function useCodex() {
             return td ? { name: td.name, inputSchema: td.inputSchema } : undefined
           },
           execute: (name: string, args: Record<string, any>) => withTimeout(name, args),
+          lookupCache: convId ? makeInTurnCacheLookup({ convId, turnStartMs }) : undefined,
           // Codex is auto-approve (coding agent runs unattended). The
           // awaitApproval hook is intentionally omitted so the executor
           // dispatches immediately.

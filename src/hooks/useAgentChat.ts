@@ -28,6 +28,7 @@ import type { ChatMessage, ToolCall, ToolDefinition } from '../api/providers/typ
 import type { StepResult, WorkflowEngineCallbacks } from '../types/agent-workflows'
 import { executeParallel, applyResultToToolCall, type ExecutionRequest } from '../api/agents/tool-executor'
 import { useToolAuditStore } from '../stores/toolAuditStore'
+import { makeInTurnCacheLookup } from '../api/agents/in-turn-cache'
 
 // ── Standalone memory extraction (usable outside React hooks) ──
 
@@ -365,6 +366,10 @@ export function useAgentChat() {
       }
     }
 
+    // Phase 6: lock in the start-of-turn timestamp so the in-turn cache
+    // only serves results from calls made during THIS user prompt.
+    const turnStartMs = Date.now()
+
     try {
       // ── Agent Loop ──────────────────────────────────────────
       while (runningRef.current && !abort.signal.aborted) {
@@ -527,6 +532,7 @@ export function useAgentChat() {
             return td ? { name: td.name, inputSchema: td.inputSchema } : undefined
           },
           execute: (name: string, args: Record<string, any>) => toolRegistry.execute(name, args),
+          lookupCache: convId ? makeInTurnCacheLookup({ convId, turnStartMs }) : undefined,
           awaitApproval: async (req) => {
             const entry = batch.find((e) => e.ac.id === req.id)
             if (!entry) return false
