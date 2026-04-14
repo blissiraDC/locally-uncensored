@@ -15,6 +15,8 @@ import type { AgentBlock, AgentToolCall } from '../types/agent-mode'
 import { selectRelevantTools } from '../lib/tool-selection'
 import { isThinkingCompatible } from '../lib/model-compatibility'
 import type { ChatMessage, ToolCall, ToolDefinition } from '../api/providers/types'
+import { executeParallel, applyResultToToolCall, type ExecutionRequest } from '../api/agents/tool-executor'
+import { useToolAuditStore } from '../stores/toolAuditStore'
 
 const CODEX_SYSTEM_PROMPT = `You are Codex, an autonomous coding agent inside Locally Uncensored. You execute coding tasks by reading files, writing code, and running shell commands. You MUST use tools to interact with the filesystem — never guess file contents.
 
@@ -83,6 +85,12 @@ export function useCodex() {
     const blocks: AgentBlock[] = []
     function addBlock(block: AgentBlock) {
       blocks.push(block)
+      useChatStore.getState().updateMessageAgentBlocks(convId!, assistantMsg.id, [...blocks])
+    }
+    function updateBlockById(blockId: string, updates: Partial<AgentBlock>) {
+      const idx = blocks.findIndex((b) => b.id === blockId)
+      if (idx < 0) return
+      blocks[idx] = { ...blocks[idx], ...updates }
       useChatStore.getState().updateMessageAgentBlocks(convId!, assistantMsg.id, [...blocks])
     }
 
@@ -242,26 +250,23 @@ export function useCodex() {
         // No tool calls → done
         if (toolCalls.length === 0) break
 
-        // Execute tool calls
-        for (const tc of toolCalls) {
-          if (!runningRef.current || abort.signal.aborted) break
+        // Phase 5b (v2.4.0) — parallel tool execution via tool-executor.
+        if (!runningRef.current || abort.signal.aborted) break
 
+        type BatchEntry = { tc: typeof toolCalls[number]; ac: AgentToolCall; blockId: string; injectedArgs: Record<string, any> }
+        const batch: BatchEntry[] = []
+        for (const tc of toolCalls) {
           const toolName = tc.function.name
           const toolArgs = { ...tc.function.arguments }
 
           // Inject working directory for file/shell tools (skip if workDir is just '.' or empty)
           const hasValidWorkDir = workDir && workDir !== '.' && workDir.length > 2
           if (toolName === 'shell_execute' && !toolArgs.cwd) {
-            if (hasValidWorkDir) {
-              toolArgs.cwd = workDir
-            }
-            // Without a valid cwd, shell_execute will use default — add timeout guard
+            if (hasValidWorkDir) toolArgs.cwd = workDir
             if (!toolArgs.timeout) toolArgs.timeout = 30000
           }
           if (toolName === 'code_execute' && !toolArgs.cwd) {
-            if (hasValidWorkDir) {
-              toolArgs.cwd = workDir
-            }
+            if (hasValidWorkDir) toolArgs.cwd = workDir
             if (!toolArgs.timeout) toolArgs.timeout = 30000
           }
           // Resolve relative file paths against working directory
@@ -272,78 +277,141 @@ export function useCodex() {
             }
           }
 
-          // Create tool call block (visible in chat)
           const toolCallId = uuid()
-          const agentToolCall: AgentToolCall = {
+          const blockId = uuid()
+          const ac: AgentToolCall = {
             id: toolCallId, toolName, args: toolArgs,
             status: 'running', timestamp: Date.now(),
           }
           addBlock({
-            id: uuid(), phase: 'tool_call', content: `Running: ${toolName}`,
-            toolCall: agentToolCall, timestamp: Date.now(),
+            id: blockId, phase: 'tool_call', content: `Running: ${toolName}`,
+            toolCall: ac, toolCalls: [ac], timestamp: Date.now(),
+          })
+          batch.push({ tc, ac, blockId, injectedArgs: toolArgs })
+        }
+
+        const requests: ExecutionRequest[] = batch.map((e) => ({
+          id: e.ac.id,
+          toolName: e.ac.toolName,
+          args: e.injectedArgs,
+        }))
+        const auditIds = new Map<string, string>()
+
+        // 60 s per-call timeout is enforced by wrapping the executor function
+        // (keeps the original safety guard — a runaway tool cannot wedge the
+        // whole agent turn).
+        const withTimeout = (name: string, args: Record<string, any>) =>
+          Promise.race([
+            toolRegistry.execute(name, args),
+            new Promise<string>((_, reject) =>
+              setTimeout(() => reject(new Error('Tool execution timed out (60s)')), 60000)
+            ),
+          ])
+
+        const results = await executeParallel(requests, {
+          getTool: (name) => {
+            const td = toolRegistry.getToolByName(name)
+            return td ? { name: td.name, inputSchema: td.inputSchema } : undefined
+          },
+          execute: (name: string, args: Record<string, any>) => withTimeout(name, args),
+          // Codex is auto-approve (coding agent runs unattended). The
+          // awaitApproval hook is intentionally omitted so the executor
+          // dispatches immediately.
+          recordAudit: (entry) => {
+            if (!convId) return
+            if (entry.kind === 'start') {
+              const aid = useToolAuditStore.getState().record({
+                convId,
+                toolCallId: entry.id,
+                toolName: entry.toolName,
+                args: entry.args,
+                startedAt: entry.startedAt,
+                parentToolCallId: entry.parentToolCallId,
+              })
+              auditIds.set(entry.id, aid)
+            } else {
+              const aid = auditIds.get(entry.id)
+              if (aid) {
+                useToolAuditStore.getState().complete(aid, {
+                  status: entry.status,
+                  completedAt: entry.completedAt,
+                  resultPreview: entry.resultPreview,
+                  error: entry.error,
+                  errorHint: entry.errorHint,
+                  cacheHit: entry.cacheHit,
+                })
+              }
+            }
+          },
+          abortSignal: abort.signal,
+        })
+
+        for (const entry of batch) {
+          const result = results.find((r) => r.id === entry.ac.id)
+          if (!result) continue
+          applyResultToToolCall(entry.ac, result)
+          const isError = result.status === 'failed'
+          updateBlockById(entry.blockId, {
+            toolCall: { ...entry.ac },
+            toolCalls: [{ ...entry.ac }],
+            content:
+              result.status === 'completed'
+                ? `Completed: ${entry.ac.toolName}`
+                : result.status === 'cached'
+                  ? `Cached: ${entry.ac.toolName}`
+                  : `Failed: ${entry.ac.toolName}`,
           })
 
-          // Execute with timeout guard (60s max to prevent freeze)
-          const startTime = Date.now()
-          const toolTimeout = 60000
-          let result: string
-          try {
-            result = await Promise.race([
-              toolRegistry.execute(toolName, toolArgs),
-              new Promise<string>((_, reject) =>
-                setTimeout(() => reject(new Error('Tool execution timed out (60s)')), toolTimeout)
-              ),
-            ])
-          } catch (timeoutErr) {
-            result = `Error: ${(timeoutErr as Error).message}`
-          }
-          const duration = Date.now() - startTime
-          const isError = result.startsWith('Error:')
-
-          // Update block with result
-          agentToolCall.status = isError ? 'failed' : 'completed'
-          agentToolCall.result = isError ? undefined : result
-          agentToolCall.error = isError ? result : undefined
-          agentToolCall.duration = duration
-          const lastBlock = blocks[blocks.length - 1]
-          if (lastBlock) {
-            lastBlock.toolCall = { ...agentToolCall }
-            lastBlock.content = isError ? `Failed: ${toolName}` : `Completed: ${toolName}`
-            useChatStore.getState().updateMessageAgentBlocks(convId!, assistantMsg.id, [...blocks])
-          }
-
-          // Also add codex event for the event log
-          if (toolName === 'shell_execute' || toolName === 'code_execute') {
+          // Codex event log parity with the old path.
+          const resultStr = entry.ac.result ?? entry.ac.error ?? ''
+          if (entry.ac.toolName === 'shell_execute' || entry.ac.toolName === 'code_execute') {
             codexStore.addEvent(convId, {
-              id: uuid(), type: 'terminal_output', content: result, timestamp: Date.now(),
+              id: uuid(), type: 'terminal_output', content: resultStr, timestamp: Date.now(),
             })
-          } else if (toolName === 'file_write') {
+          } else if (entry.ac.toolName === 'file_write') {
             codexStore.addEvent(convId, {
-              id: uuid(), type: 'file_change', content: result,
-              filePath: toolArgs.path, timestamp: Date.now(),
+              id: uuid(), type: 'file_change', content: resultStr,
+              filePath: entry.injectedArgs.path, timestamp: Date.now(),
             })
           } else if (isError) {
             codexStore.addEvent(convId, {
-              id: uuid(), type: 'error', content: result, timestamp: Date.now(),
+              id: uuid(), type: 'error', content: resultStr, timestamp: Date.now(),
             })
           }
+        }
 
-          // Append to message history
-          if (providerId === 'openai' || providerId === 'anthropic') {
-            messages.push({ role: 'assistant', content: turnContent || '', tool_calls: [tc] })
-            messages.push({ role: 'tool', content: result, tool_call_id: tc.id })
-          } else if (strategy === 'native') {
-            messages.push({
-              role: 'assistant', content: turnContent || '',
-              tool_calls: [{ function: { name: toolName, arguments: toolArgs } }],
-            })
-            messages.push({ role: 'tool', content: result })
-          } else {
+        // Feed results back into LLM history (batched per-provider shape).
+        const resultTextFor = (r: typeof results[number]): string => {
+          if (r.status === 'completed' || r.status === 'cached') return r.result ?? ''
+          return r.errorHint ? `${r.error ?? 'Tool failed'} — ${r.errorHint}` : (r.error ?? 'Tool failed')
+        }
+
+        if (providerId === 'openai' || providerId === 'anthropic') {
+          messages.push({ role: 'assistant', content: turnContent || '', tool_calls: toolCalls })
+          for (const { tc } of batch) {
+            const result = results.find((r) => r.id === batch.find((b) => b.tc === tc)?.ac.id)!
+            messages.push({ role: 'tool', content: resultTextFor(result), tool_call_id: tc.id })
+          }
+        } else if (strategy === 'native') {
+          messages.push({
+            role: 'assistant',
+            content: turnContent || '',
+            tool_calls: batch.map((e) => ({
+              function: { name: e.ac.toolName, arguments: e.injectedArgs },
+            })),
+          })
+          for (const { tc } of batch) {
+            const result = results.find((r) => r.id === batch.find((b) => b.tc === tc)?.ac.id)!
+            messages.push({ role: 'tool', content: resultTextFor(result) })
+          }
+        } else {
+          for (const entry of batch) {
+            const result = results.find((r) => r.id === entry.ac.id)!
             messages.push({
               role: 'assistant',
-              content: `<tool_call>\n{"name": "${toolName}", "arguments": ${JSON.stringify(toolArgs)}}\n</tool_call>`,
+              content: `<tool_call>\n{"name": "${entry.ac.toolName}", "arguments": ${JSON.stringify(entry.injectedArgs)}}\n</tool_call>`,
             })
-            messages.push({ role: 'user', content: buildHermesToolResult(toolName, result) })
+            messages.push({ role: 'user', content: buildHermesToolResult(entry.ac.toolName, resultTextFor(result)) })
           }
         }
       }

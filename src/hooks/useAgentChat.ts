@@ -26,6 +26,8 @@ import type { AgentBlock, AgentToolCall, OllamaChatMessage } from '../types/agen
 import { selectRelevantTools } from '../lib/tool-selection'
 import type { ChatMessage, ToolCall, ToolDefinition } from '../api/providers/types'
 import type { StepResult, WorkflowEngineCallbacks } from '../types/agent-workflows'
+import { executeParallel, applyResultToToolCall, type ExecutionRequest } from '../api/agents/tool-executor'
+import { useToolAuditStore } from '../stores/toolAuditStore'
 
 // ── Standalone memory extraction (usable outside React hooks) ──
 
@@ -115,6 +117,25 @@ export function useAgentChat() {
       blocksRef.current = blocks
       useChatStore.getState().updateMessageAgentBlocks(convId, msgId, blocks)
     }
+  }
+
+  /**
+   * ID-keyed block update — used by the parallel tool executor (Phase 5) so
+   * N concurrent tool-call blocks can update independently as their results
+   * land out of order. Falls back to no-op on unknown id.
+   */
+  function updateBlockById(
+    convId: string,
+    msgId: string,
+    blockId: string,
+    updates: Partial<AgentBlock>
+  ) {
+    const idx = blocksRef.current.findIndex((b) => b.id === blockId)
+    if (idx < 0) return
+    const blocks = [...blocksRef.current]
+    blocks[idx] = { ...blocks[idx], ...updates }
+    blocksRef.current = blocks
+    useChatStore.getState().updateMessageAgentBlocks(convId, msgId, blocks)
   }
 
   // ── Main agent message handler ────────────────────────────
@@ -457,160 +478,185 @@ export function useAgentChat() {
         // If no tool calls, the model is done
         if (toolCalls.length === 0) break
 
-        // Process each tool call
-        for (const tc of toolCalls) {
-          if (!runningRef.current || abort.signal.aborted) break
+        // Phase 5b (v2.4.0) — parallel tool execution via tool-executor.
+        //
+        // Pre-create AgentToolCall + block per tc so the UI can render all
+        // of them concurrently before any runs. Then executeParallel runs
+        // them respecting sideEffectKey (file_write same-path serializes,
+        // shell/code share an 'exec' queue, image/workflow share 'comfyui',
+        // pure reads fully parallel).
+        if (!runningRef.current || abort.signal.aborted) break
 
+        type BatchEntry = { tc: typeof toolCalls[number]; ac: AgentToolCall; blockId: string }
+        const batch: BatchEntry[] = []
+        for (const tc of toolCalls) {
           const toolCallId = uuid()
-          const agentToolCall: AgentToolCall = {
+          const blockId = uuid()
+          const permLevel = toolRegistry.getPermissionLevel(tc.function.name, permissions)
+          const needsApproval = permLevel !== 'auto'
+          const ac: AgentToolCall = {
             id: toolCallId,
             toolName: tc.function.name,
             args: tc.function.arguments,
-            status: 'running',
+            status: needsApproval ? 'pending_approval' : 'running',
             timestamp: Date.now(),
           }
+          addBlock(convId!, assistantMessage.id, {
+            id: blockId,
+            phase: 'tool_call',
+            content: needsApproval
+              ? `Requesting approval: ${tc.function.name}`
+              : `Running: ${tc.function.name}`,
+            toolCall: ac,
+            toolCalls: [ac],
+            timestamp: Date.now(),
+          })
+          batch.push({ tc, ac, blockId })
+        }
 
-          // Check permission via new registry
-          const permLevel = toolRegistry.getPermissionLevel(tc.function.name, permissions)
-          const permission = permLevel === 'auto' ? 'auto' : 'confirm'
+        const requests: ExecutionRequest[] = batch.map((e) => ({
+          id: e.ac.id,
+          toolName: e.ac.toolName,
+          args: e.ac.args,
+        }))
+        const auditIds = new Map<string, string>()
 
-          if (permission === 'confirm') {
-            agentToolCall.status = 'pending_approval'
-            addBlock(convId!, assistantMessage.id, {
-              id: uuid(),
-              phase: 'tool_call',
-              content: `Requesting approval: ${tc.function.name}`,
-              toolCall: agentToolCall,
-              timestamp: Date.now(),
-            })
-
-            const approved = await waitForApproval(agentToolCall)
-
-            if (!approved) {
-              agentToolCall.status = 'rejected'
-              updateLastBlock(convId!, assistantMessage.id, {
-                toolCall: { ...agentToolCall, status: 'rejected' },
-                content: `Rejected: ${tc.function.name}`,
+        const results = await executeParallel(requests, {
+          getTool: (name) => {
+            const td = toolRegistry.getToolByName(name)
+            return td ? { name: td.name, inputSchema: td.inputSchema } : undefined
+          },
+          execute: (name: string, args: Record<string, any>) => toolRegistry.execute(name, args),
+          awaitApproval: async (req) => {
+            const entry = batch.find((e) => e.ac.id === req.id)
+            if (!entry) return false
+            const approved = await waitForApproval(entry.ac)
+            if (approved) {
+              entry.ac.status = 'running'
+              updateBlockById(convId!, assistantMessage.id, entry.blockId, {
+                toolCall: { ...entry.ac },
+                toolCalls: [{ ...entry.ac }],
+                content: `Running: ${entry.ac.toolName}`,
               })
-
-              // Feed rejection back
-              agentMessages.push({
-                role: 'assistant',
-                content: turnContent || '',
-                tool_calls: [tc],
+            }
+            return approved
+          },
+          recordAudit: (entry) => {
+            if (!convId) return
+            if (entry.kind === 'start') {
+              const aid = useToolAuditStore.getState().record({
+                convId,
+                toolCallId: entry.id,
+                toolName: entry.toolName,
+                args: entry.args,
+                startedAt: entry.startedAt,
+                parentToolCallId: entry.parentToolCallId,
               })
-
-              if (providerId === 'openai' || providerId === 'anthropic') {
-                agentMessages.push({
-                  role: 'tool',
-                  content: 'User rejected this action. Try a different approach.',
-                  tool_call_id: tc.id,
-                })
-              } else if (strategy === 'native') {
-                agentMessages.push({
-                  role: 'tool',
-                  content: 'User rejected this action. Try a different approach.',
-                })
-              } else {
-                agentMessages.push({
-                  role: 'user',
-                  content: buildHermesToolResult(tc.function.name, 'User rejected this action. Try a different approach.'),
+              auditIds.set(entry.id, aid)
+            } else {
+              const aid = auditIds.get(entry.id)
+              if (aid) {
+                useToolAuditStore.getState().complete(aid, {
+                  status: entry.status,
+                  completedAt: entry.completedAt,
+                  resultPreview: entry.resultPreview,
+                  error: entry.error,
+                  errorHint: entry.errorHint,
+                  cacheHit: entry.cacheHit,
                 })
               }
-              continue
             }
+          },
+          abortSignal: abort.signal,
+        })
 
-            agentToolCall.status = 'running'
-            updateLastBlock(convId!, assistantMessage.id, {
-              toolCall: { ...agentToolCall, status: 'running' },
-              content: `Running: ${tc.function.name}`,
-            })
-          } else {
-            addBlock(convId!, assistantMessage.id, {
-              id: uuid(),
-              phase: 'tool_call',
-              content: `Running: ${tc.function.name}`,
-              toolCall: agentToolCall,
-              timestamp: Date.now(),
-            })
-          }
-
-          // Execute the tool
-          const startTime = Date.now()
-          const result = await toolRegistry.execute(tc.function.name, tc.function.arguments)
-          const duration = Date.now() - startTime
-
-          // Update block with result
-          const isError = result.startsWith('Error:')
-          agentToolCall.status = isError ? 'failed' : 'completed'
-          agentToolCall.result = isError ? undefined : result
-          agentToolCall.error = isError ? result : undefined
-          agentToolCall.duration = duration
-
-          updateLastBlock(convId!, assistantMessage.id, {
-            toolCall: { ...agentToolCall },
-            content: isError ? `Failed: ${tc.function.name}` : `Completed: ${tc.function.name}`,
+        // Apply results back onto blocks + memory + LLM history.
+        for (const entry of batch) {
+          const result = results.find((r) => r.id === entry.ac.id)
+          if (!result) continue
+          applyResultToToolCall(entry.ac, result)
+          const contentLabel =
+            result.status === 'completed'
+              ? `Completed: ${entry.ac.toolName}`
+              : result.status === 'cached'
+                ? `Cached: ${entry.ac.toolName}`
+                : result.status === 'rejected'
+                  ? `Rejected: ${entry.ac.toolName}`
+                  : `Failed: ${entry.ac.toolName}`
+          updateBlockById(convId!, assistantMessage.id, entry.blockId, {
+            toolCall: { ...entry.ac },
+            toolCalls: [{ ...entry.ac }],
+            content: contentLabel,
           })
 
-          // Auto-save tool result to memory
-          if (!isError) {
-            const argsShort = JSON.stringify(tc.function.arguments).substring(0, 100)
-            const resultShort = result.substring(0, 200)
+          if ((result.status === 'completed' || result.status === 'cached') && entry.ac.result) {
+            const argsShort = JSON.stringify(entry.ac.args).substring(0, 100)
+            const resultShort = entry.ac.result.substring(0, 200)
             useMemoryStore.getState().addMemory({
               type: 'reference',
-              title: `${tc.function.name} result`,
-              description: `${tc.function.name}(${argsShort.substring(0, 60)}) → ${resultShort.substring(0, 60)}`,
-              content: `${tc.function.name}(${argsShort}) → ${resultShort}`,
-              tags: [`agent:${tc.function.name}`],
+              title: `${entry.ac.toolName} result`,
+              description: `${entry.ac.toolName}(${argsShort.substring(0, 60)}) → ${resultShort.substring(0, 60)}`,
+              content: `${entry.ac.toolName}(${argsShort}) → ${resultShort}`,
+              tags: [`agent:${entry.ac.toolName}`],
               source: convId || 'agent',
             })
           }
+        }
 
-          // Append tool call + result to messages for next iteration
-          if (providerId === 'openai') {
-            // OpenAI format: assistant with tool_calls, then tool role with tool_call_id
-            agentMessages.push({
-              role: 'assistant',
-              content: turnContent || '',
-              tool_calls: [tc],
-            })
+        // Feed results back into LLM history. Format differs per provider:
+        //   OpenAI / Anthropic / Ollama native: ONE assistant message with
+        //   tool_calls[] + N tool messages (one per result). This preserves
+        //   the provider's expected structure when multiple tool calls come
+        //   back in one assistant turn.
+        //   Hermes XML fallback: pairs (assistant <tool_call> → user result),
+        //   kept per-call for compatibility with how the non-native path
+        //   parses history.
+        const resultTextFor = (r: typeof results[number]): string => {
+          if (r.status === 'rejected') return 'User rejected this action. Try a different approach.'
+          if (r.status === 'completed' || r.status === 'cached') return r.result ?? ''
+          // failed
+          return r.errorHint ? `${r.error ?? 'Tool failed'} — ${r.errorHint}` : (r.error ?? 'Tool failed')
+        }
+
+        if (providerId === 'openai' || providerId === 'anthropic') {
+          agentMessages.push({
+            role: 'assistant',
+            content: turnContent || '',
+            tool_calls: toolCalls,
+          })
+          for (const { tc } of batch) {
+            const result = results.find((r) => r.id === batch.find((b) => b.tc === tc)?.ac.id)!
             agentMessages.push({
               role: 'tool',
-              content: result,
+              content: resultTextFor(result),
               tool_call_id: tc.id,
             })
-          } else if (providerId === 'anthropic') {
-            // Anthropic format: same structure, tool_call_id maps to tool_use id
-            agentMessages.push({
-              role: 'assistant',
-              content: turnContent || '',
-              tool_calls: [tc],
-            })
-            agentMessages.push({
-              role: 'tool',
-              content: result,
-              tool_call_id: tc.id,
-            })
-          } else if (strategy === 'native') {
-            // Ollama native
-            agentMessages.push({
-              role: 'assistant',
-              content: turnContent || '',
-              tool_calls: [{ function: { name: tc.function.name, arguments: tc.function.arguments } }],
-            })
+          }
+        } else if (strategy === 'native') {
+          agentMessages.push({
+            role: 'assistant',
+            content: turnContent || '',
+            tool_calls: toolCalls.map((tc) => ({
+              function: { name: tc.function.name, arguments: tc.function.arguments },
+            })),
+          })
+          for (const { tc } of batch) {
+            const result = results.find((r) => r.id === batch.find((b) => b.tc === tc)?.ac.id)!
             agentMessages.push({
               role: 'tool',
-              content: result,
+              content: resultTextFor(result),
             })
-          } else {
-            // Hermes XML
+          }
+        } else {
+          for (const { tc } of batch) {
+            const result = results.find((r) => r.id === batch.find((b) => b.tc === tc)?.ac.id)!
             agentMessages.push({
               role: 'assistant',
               content: `<tool_call>\n{"name": "${tc.function.name}", "arguments": ${JSON.stringify(tc.function.arguments)}}\n</tool_call>`,
             })
             agentMessages.push({
               role: 'user',
-              content: buildHermesToolResult(tc.function.name, result),
+              content: buildHermesToolResult(tc.function.name, resultTextFor(result)),
             })
           }
         }
