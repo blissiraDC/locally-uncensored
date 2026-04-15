@@ -90,6 +90,46 @@ describe('ToolRegistry — registerExternal name binding', () => {
   })
 })
 
+describe('ToolRegistry — getPermissionLevelWithOverrides (Phase 12)', () => {
+  it('returns the per-tool override when set', () => {
+    const registry = new ToolRegistry()
+    registry.registerBuiltin(
+      { ...mkTool('file_write'), source: 'builtin', category: 'filesystem' },
+      async () => 'ok'
+    )
+    const lvl = registry.getPermissionLevelWithOverrides(
+      'file_write',
+      { ...fullPerms, filesystem: 'confirm' },
+      { file_write: 'auto' }
+    )
+    expect(lvl).toBe('auto')
+  })
+
+  it('falls back to category when no per-tool override exists', () => {
+    const registry = new ToolRegistry()
+    registry.registerBuiltin(
+      { ...mkTool('file_write'), source: 'builtin', category: 'filesystem' },
+      async () => 'ok'
+    )
+    const lvl = registry.getPermissionLevelWithOverrides(
+      'file_write',
+      { ...fullPerms, filesystem: 'confirm' },
+      {}
+    )
+    expect(lvl).toBe('confirm')
+  })
+
+  it('returns confirm for unknown tool regardless of overrides', () => {
+    const registry = new ToolRegistry()
+    // Override set for a tool that is not registered at all.
+    const lvl = registry.getPermissionLevelWithOverrides('mystery', fullPerms, {
+      mystery: 'auto',
+    })
+    // Override wins — tool-existence is orthogonal to the level lookup.
+    expect(lvl).toBe('auto')
+  })
+})
+
 describe('external-client — resolveCommandForPlatform', () => {
   it('appends .cmd for known Node-based commands on Windows', () => {
     expect(resolveCommandForPlatform('npx', 'Win32')).toBe('npx.cmd')

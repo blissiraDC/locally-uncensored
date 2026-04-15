@@ -83,6 +83,23 @@ export class ToolRegistry {
     return permissions[tool.category]
   }
 
+  /**
+   * Phase 12 — resolve the effective permission for a tool with a per-tool
+   * override map layered on top of category defaults. The override map is
+   * typically sourced from permissionStore.perToolOverrides and takes
+   * precedence over the category permission; when no override exists we
+   * fall back to getPermissionLevel() semantics.
+   */
+  getPermissionLevelWithOverrides(
+    toolName: string,
+    permissions: PermissionMap,
+    perToolOverrides: Record<string, PermissionLevel>
+  ): PermissionLevel {
+    const override = perToolOverrides[toolName]
+    if (override) return override
+    return this.getPermissionLevel(toolName, permissions)
+  }
+
   // ── Execution ─────────────────────────────────────────────────
 
   async execute(name: string, args: Record<string, any>, maxRetries = 1): Promise<string> {

@@ -521,10 +521,15 @@ export function useAgentChat() {
         type BatchEntry = { tc: typeof toolCalls[number]; ac: AgentToolCall; blockId: string }
         const batch: BatchEntry[] = []
         budget.addToolCalls(toolCalls.length)
+        const perToolOverrides = usePermissionStore.getState().perToolOverrides
         for (const tc of toolCalls) {
           const toolCallId = uuid()
           const blockId = uuid()
-          const permLevel = toolRegistry.getPermissionLevel(tc.function.name, permissions)
+          const permLevel = toolRegistry.getPermissionLevelWithOverrides(
+            tc.function.name,
+            permissions,
+            perToolOverrides
+          )
           const needsApproval = permLevel !== 'auto'
           const ac: AgentToolCall = {
             id: toolCallId,
