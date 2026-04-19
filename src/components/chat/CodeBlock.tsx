@@ -10,6 +10,31 @@ interface Props {
 
 const COLLAPSE_THRESHOLD = 4 // lines — always start collapsed unless very short
 
+const HTML_LANG_TAGS = new Set(['html', 'htm', 'xhtml', 'svg'])
+
+/**
+ * Decide whether a code block should offer the Preview chip that opens
+ * HtmlPreviewModal. Err on the side of NOT previewing: a fragment like
+ * `<div>foo</div>` could just as well be JSX / Vue / Angular template,
+ * and rendering those as raw HTML in a sandboxed iframe is useless.
+ *
+ * Positive by language tag: html, htm, xhtml, svg (case-insensitive).
+ * Positive by content: starts with `<!doctype html`, `<html`, or an
+ * `<svg xmlns=` that carries the xmlns attribute (leading whitespace ok).
+ * Everything else → false.
+ */
+export function isHtmlSnippet(code: string, language?: string): boolean {
+  if (language && HTML_LANG_TAGS.has(language.toLowerCase())) return true
+  if (!code) return false
+  const trimmed = code.trimStart()
+  if (!trimmed) return false
+  const lower = trimmed.toLowerCase()
+  if (lower.startsWith('<!doctype html')) return true
+  if (lower.startsWith('<html')) return true
+  if (lower.startsWith('<svg') && /<svg[^>]*\bxmlns\s*=/.test(trimmed)) return true
+  return false
+}
+
 export function CodeBlock({ code, language }: Props) {
   const [copied, setCopied] = useState(false)
   const lineCount = code.split('\n').length

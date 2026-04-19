@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseOllamaError, ModelLoadError, chatStyleMessage } from '../ollama-errors'
+import { parseOllamaError, ModelLoadError, chatStyleMessage, parseShowNotFound } from '../ollama-errors'
 
 describe('parseOllamaError', () => {
   it('detects /api/chat stale-manifest error', async () => {
@@ -44,6 +44,18 @@ describe('parseOllamaError', () => {
     expect(parsed.model).toBe('mannix/llama3.1-8b-abliterated:agent')
   })
 
+  // "model X not found" is NOT flagged as stale by parseOllamaError alone —
+  // it also fires for genuinely non-existent models, and we must not misclassify
+  // those. Disambiguation is done by the scanner via cross-reference with
+  // /api/tags. parseShowNotFound extracts the name for scanner use.
+  it('does NOT flag /api/show 404 as stale from parseOllamaError alone', async () => {
+    const body = JSON.stringify({ error: "model 'phi4:14b' not found" })
+    const res = new Response(body, { status: 404 })
+    const parsed = await parseOllamaError(res)
+    expect(parsed.kind).toBe('other')
+    expect(parsed.model).toBeNull()
+  })
+
   it('returns other for unknown 400 errors', async () => {
     const body = JSON.stringify({ error: 'unrelated error message' })
     const res = new Response(body, { status: 400 })
@@ -85,6 +97,27 @@ describe('ModelLoadError', () => {
     const err = new ModelLoadError(parsed, 'phi4:14b')
     expect(err.kind).toBe('other')
     expect(err.model).toBe('phi4:14b')  // caller-supplied fallback
+  })
+})
+
+describe('parseShowNotFound', () => {
+  it('extracts model name from quoted "not found" message', () => {
+    expect(parseShowNotFound("model 'phi4:14b' not found")).toBe('phi4:14b')
+  })
+  it('tolerates double-quotes', () => {
+    expect(parseShowNotFound('model "hermes3:8b" not found')).toBe('hermes3:8b')
+  })
+  it('tolerates no quotes', () => {
+    expect(parseShowNotFound('model dolphin3:8b not found')).toBe('dolphin3:8b')
+  })
+  it('handles namespaced model names', () => {
+    expect(parseShowNotFound("model 'mannix/llama3.1-8b-abliterated:agent' not found"))
+      .toBe('mannix/llama3.1-8b-abliterated:agent')
+  })
+  it('returns null for unrelated strings', () => {
+    expect(parseShowNotFound('server crashed')).toBeNull()
+    expect(parseShowNotFound('')).toBeNull()
+    expect(parseShowNotFound('does not support chat')).toBeNull()
   })
 })
 

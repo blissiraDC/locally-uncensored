@@ -365,10 +365,12 @@ export async function getAnimateDiffModels(): Promise<string[]> {
 
 let _knownFileSizes: Map<string, { subfolder: string; expectedBytes: number }> | null = null
 
-function getKnownFileSizes(): Map<string, { subfolder: string; expectedBytes: number }> {
+async function getKnownFileSizes(): Promise<Map<string, { subfolder: string; expectedBytes: number }>> {
   if (_knownFileSizes) return _knownFileSizes
-  // Lazy import to avoid circular deps
-  const { getImageBundles, getVideoBundles } = require('../api/discover')
+  // Dynamic import (not CommonJS require) — discover.ts imports back into
+  // comfyui.ts for classification helpers, so we defer the import to break
+  // the cycle at runtime instead of at module init.
+  const { getImageBundles, getVideoBundles } = await import('./discover')
   _knownFileSizes = new Map()
   for (const bundle of [...getImageBundles(), ...getVideoBundles()]) {
     for (const f of (bundle as any).files) {
@@ -385,7 +387,7 @@ function getKnownFileSizes(): Map<string, { subfolder: string; expectedBytes: nu
 
 /** Filter out partially downloaded files. Returns only filenames that are complete. */
 export async function filterPartialFiles(filenames: string[]): Promise<Set<string>> {
-  const known = getKnownFileSizes()
+  const known = await getKnownFileSizes()
   const filesToCheck = filenames
     .filter(name => known.has(name))
     .map(name => {

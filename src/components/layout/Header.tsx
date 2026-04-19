@@ -13,6 +13,8 @@ import { loadModel, unloadModel, listRunningModels } from '../../api/ollama'
 import { getProviderIdFromModel } from '../../api/providers'
 import { ModelLoadError } from '../../lib/ollama-errors'
 import { useModels } from '../../hooks/useModels'
+import { useModelHealthStore } from '../../stores/modelHealthStore'
+import { checkModelCapability } from '../../api/ollama'
 
 export function Header() {
   const { currentView, toggleSidebar, setView } = useUIStore()
@@ -26,11 +28,22 @@ export function Header() {
   // one-click refresh that re-pulls the model (progress tracked in DownloadBadge).
   const [staleError, setStaleError] = useState<{ model: string; message: string } | null>(null)
   const { pullModel, isPullingModel } = useModels()
+  const healthStaleModels = useModelHealthStore((s) => s.staleModels)
+  const addStaleToHealth = useModelHealthStore((s) => s.setStaleModels)
+  const markHealthFresh = useModelHealthStore((s) => s.markFresh)
 
   // Check if active model is an Ollama model
   const isOllamaModel = activeModel ? getProviderIdFromModel(activeModel) === 'ollama' : false
   const modelToUse = activeModel?.includes('::') ? activeModel.split('::')[1] : activeModel
   const isRefreshing = modelToUse ? isPullingModel(modelToUse) : false
+
+  // Merge a single stale discovery into the shared health store so the top
+  // banner and any Model Manager indicators update in lock-step with the
+  // inline Lichtschalter chip.
+  const syncStaleToStore = (name: string) => {
+    const current = useModelHealthStore.getState().staleModels
+    if (!current.includes(name)) addStaleToHealth([...current, name])
+  }
 
   const handleLoad = async () => {
     if (!modelToUse || loadingState !== 'idle') return
@@ -39,9 +52,13 @@ export function Header() {
     try {
       await loadModel(modelToUse)
       setIsModelLoaded(true)
+      // If the store still thinks this model is stale (e.g. a scan ran before
+      // the user re-pulled externally), clear it.
+      markHealthFresh(modelToUse)
     } catch (e) {
       if (e instanceof ModelLoadError && e.kind === 'stale-manifest') {
         setStaleError({ model: e.model, message: e.message })
+        syncStaleToStore(e.model)
       }
     }
     finally { setLoadingState('idle') }
@@ -56,6 +73,7 @@ export function Header() {
     } catch (e) {
       if (e instanceof ModelLoadError && e.kind === 'stale-manifest') {
         setStaleError({ model: e.model, message: e.message })
+        syncStaleToStore(e.model)
       }
     }
     finally { setLoadingState('idle') }
@@ -66,16 +84,32 @@ export function Header() {
     const name = staleError.model
     // pullModel wires into the DownloadBadge via useModels' activePulls store —
     // user sees progress in the header badge. After the pull completes,
-    // re-attempt the load automatically.
+    // verify via a cheap probe and then re-attempt the load automatically.
     try {
       await pullModel(name)
-      setStaleError(null)
-      // pullModel resolves when the stream ends; give Ollama a beat then retry.
-      setTimeout(() => { handleLoad() }, 300)
+      const check = await checkModelCapability(name)
+      if (check.ok) {
+        markHealthFresh(name)
+        setStaleError(null)
+        setTimeout(() => { handleLoad() }, 200)
+      }
+      // If still not ok, keep the chip visible so the user can retry.
     } catch {
       // error stays visible — user can click Refresh again
     }
   }
+
+  // When the startup health scan flags this model as stale, pre-populate the
+  // chip so the user sees it WITHOUT having to click the broken toggle first.
+  useEffect(() => {
+    if (!modelToUse || !isOllamaModel) return
+    if (healthStaleModels.includes(modelToUse) && !staleError) {
+      setStaleError({
+        model: modelToUse,
+        message: `Model "${modelToUse}" has a stale manifest. Run "ollama pull ${modelToUse}" to refresh.`,
+      })
+    }
+  }, [modelToUse, isOllamaModel, healthStaleModels, staleError])
 
   // Check loaded state when model changes
   useEffect(() => {

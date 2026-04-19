@@ -96,8 +96,11 @@ describe('MODEL_TYPE_DEFAULTS', () => {
   })
 
   it('FLUX uses low CFG', () => {
+    // FLUX 1 + FLUX 2 are both distilled flow-matching models, both use cfg=1.0.
+    // Z-Image (separate type) is the 3.5-CFG model — see zimage defaults.
     expect(MODEL_TYPE_DEFAULTS.flux.cfgScale).toBe(1.0)
-    expect(MODEL_TYPE_DEFAULTS.flux2.cfgScale).toBe(3.5) // flux2 uses 3.5
+    expect(MODEL_TYPE_DEFAULTS.flux2.cfgScale).toBe(1.0)
+    expect(MODEL_TYPE_DEFAULTS.zimage.cfgScale).toBe(3.5)
   })
 
   it('SD1.5 uses 512x512', () => {

@@ -31,6 +31,12 @@ export interface ParsedOllamaError {
 
 const STALE_MANIFEST_RE =
   /[\\'"]*([\w.:/\-]+?)[\\'"]*\s+does not support (chat|completion|generate)/i
+// Ollama 0.20.7's /api/show returns 404 "model '<name>' not found" for
+// manifests it can no longer parse — empirically this only happens for
+// stale manifests pulled before the registry-side capabilities refresh.
+// Fresh pulls of the same model name succeed. Treated as stale-manifest so
+// the scan + banner can offer a one-click refresh.
+const SHOW_NOT_FOUND_RE = /model\s+['"]?([\w.:/\-]+?)['"]?\s+not\s+found/i
 
 /**
  * Parse an Ollama error response into a typed structure.
@@ -58,18 +64,37 @@ export async function parseOllamaError(
     raw = fallback
   }
 
-  const m = typeof raw === 'string' ? raw.match(STALE_MANIFEST_RE) : null
-  if (m) {
-    const model = m[1]
-    return {
-      kind: 'stale-manifest',
-      model,
-      message: `Model "${model}" has a stale manifest. Run "ollama pull ${model}" to refresh.`,
-      raw,
+  if (typeof raw === 'string') {
+    const m1 = raw.match(STALE_MANIFEST_RE)
+    if (m1) {
+      const model = m1[1]
+      return {
+        kind: 'stale-manifest',
+        model,
+        message: `Model "${model}" has a stale manifest. Run "ollama pull ${model}" to refresh.`,
+        raw,
+      }
     }
+    // NOTE: we intentionally do NOT treat "model X not found" as stale here.
+    // That string also legitimately fires for genuinely absent models
+    // (user types a model name that was never pulled). The health scanner
+    // cross-references with /api/tags before calling parseShowNotFound to
+    // disambiguate — see `checkModelCapability` in api/ollama.ts.
   }
 
   return { kind: 'other', model: null, message: raw, raw }
+}
+
+/**
+ * Parse `{"error":"model 'X' not found"}` bodies from /api/show.
+ * Returns the captured model name or null. Only the scanner should call this,
+ * and only AFTER verifying the name is present in /api/tags — the string
+ * `model X not found` also fires for genuinely absent models (a user typing
+ * a model that was never pulled) and we must not flag those as stale.
+ */
+export function parseShowNotFound(raw: string): string | null {
+  const m = raw.match(SHOW_NOT_FOUND_RE)
+  return m ? m[1] : null
 }
 
 /** Typed error thrown by loadModel / unloadModel. */

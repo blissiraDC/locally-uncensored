@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Header } from './Header'
+import { StaleModelsBanner } from './StaleModelsBanner'
 import { Sidebar } from './Sidebar'
 import { ChatView } from '../chat/ChatView'
 import { ModelManager } from '../models/ModelManager'
@@ -15,6 +16,7 @@ import { useProviderStore } from '../../stores/providerStore'
 import { useChatStore } from '../../stores/chatStore'
 import { useModelStore } from '../../stores/modelStore'
 import { useRemoteStore } from '../../stores/remoteStore'
+import { useModelHealthStore } from '../../stores/modelHealthStore'
 import { extractMemoriesFromPair } from '../../hooks/useMemory'
 import { detectLocalBackends, type DetectedBackend } from '../../lib/backend-detector'
 import { backendCall, isTauri } from '../../api/backend'
@@ -205,6 +207,36 @@ export function AppShell() {
     }
   }, [])
 
+  // Ollama 0.20.7 stale-manifest scan — runs once per session shortly after
+  // startup. Flags installed models that the server now rejects with "does
+  // not support chat/completion/generate" (pulled before the registry-side
+  // capabilities refresh). Populates useModelHealthStore → StaleModelsBanner
+  // surfaces the result as a top-of-app notice with one-click Refresh All.
+  useEffect(() => {
+    if (!onboardingDone || !isTauri()) return
+    if (sessionStorage.getItem('lu-model-health-scan-done')) return
+    sessionStorage.setItem('lu-model-health-scan-done', '1')
+
+    // 3 s delay: give Ollama time to respond to /api/version after cold start
+    // and avoid racing the backend-detection effect below.
+    const timer = setTimeout(async () => {
+      try {
+        useModelHealthStore.getState().setScanning(true)
+        const { scanInstalledModels, checkConnection } = await import('../../api/ollama')
+        const ok = await checkConnection()
+        if (!ok) return
+        const results = await scanInstalledModels()
+        const stale = results.filter((r) => r.stale).map((r) => r.name)
+        useModelHealthStore.getState().setStaleModels(stale)
+      } catch {
+        // Scan is best-effort — silently fall back if Ollama is unreachable.
+      } finally {
+        useModelHealthStore.getState().setScanning(false)
+      }
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [onboardingDone])
+
   // Auto-detect local backends on startup (once per session)
   useEffect(() => {
     if (!onboardingDone) return
@@ -247,6 +279,7 @@ export function AppShell() {
       <div className="h-full flex flex-col">
         <Titlebar />
         <Header />
+        <StaleModelsBanner />
         <div className="flex-1 flex overflow-hidden">
           <Sidebar />
           <main className="flex-1 overflow-hidden">
