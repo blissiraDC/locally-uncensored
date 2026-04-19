@@ -212,6 +212,14 @@ export function useChat() {
       let firstChunk = true
 
       for await (const chunk of stream) {
+        // Abort fast-path: if the user hit Stop while a thinking-heavy model
+        // (Gemma 4, QwQ) is still generating its thinking block, the fetch
+        // AbortController alone can take 30-60 s to actually close the HTTP
+        // stream — during that time Ollama keeps emitting `thinking` chunks
+        // that we'd otherwise spin on. Check the flag every chunk so Stop
+        // feels instant even mid-thinking.
+        if (abort.signal.aborted) break
+
         if (firstChunk) {
           firstChunk = false
           setIsLoadingModel(false)

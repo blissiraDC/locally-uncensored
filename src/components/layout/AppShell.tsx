@@ -89,7 +89,15 @@ export function AppShell() {
     })
   }, [])
 
-  // Periodically backup stores to %APPDATA% (every 30s)
+  // Backup stores to %APPDATA% — three-pronged so chat history survives
+  // NSIS updates + abrupt process kills:
+  //   1. 10 s safety-net interval (was 30 s — too slow, users lost chats if
+  //      they sent a message shortly before an upgrade).
+  //   2. Debounced event-driven backup: 1 s after every chat/codex/memory
+  //      mutation. Catches "typed + restart within interval window" case.
+  //   3. beforeunload sync flush on Tauri window close. Fires for graceful
+  //      quits and "X" button; does NOT fire for taskkill / NSIS upgrade
+  //      (why we need 1+2 as well).
   useEffect(() => {
     if (!isTauri() || !onboardingDone) return
     // Migration: legacy users with localStorage onboardingDone=true but missing
@@ -111,8 +119,30 @@ export function AppShell() {
       }
     }
     doBackup() // immediate first backup
-    const interval = setInterval(doBackup, 30_000)
-    return () => clearInterval(interval)
+    const interval = setInterval(doBackup, 10_000)
+
+    // Event-driven backup: subscribe to the stores that change most often
+    // (chat conversations, codex chats, memory). Debounce to coalesce bursts
+    // — a 10-message thread arrives in ~1 s, we only want 1 backup call, not 10.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleBackup = () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(doBackup, 1_000)
+    }
+    const unsubChat = useChatStore.subscribe(scheduleBackup)
+
+    // Tauri window close path — triggers on graceful quit (user clicks X)
+    // and on window.close(). Process kill / NSIS update DO NOT fire this,
+    // hence the interval above as a safety net.
+    const onBeforeUnload = () => doBackup()
+    window.addEventListener('beforeunload', onBeforeUnload)
+
+    return () => {
+      clearInterval(interval)
+      if (debounceTimer) clearTimeout(debounceTimer)
+      unsubChat()
+      window.removeEventListener('beforeunload', onBeforeUnload)
+    }
   }, [onboardingDone])
 
   useEffect(() => {

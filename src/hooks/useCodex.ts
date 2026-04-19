@@ -119,6 +119,14 @@ async function streamWithTools(
   let toolCalls: ToolCall[] = []
 
   while (true) {
+    // Fast-abort: if the user hits Stop while the model is still generating
+    // (especially in a long thinking phase), cancelling the fetch alone can
+    // take ages to propagate. Check the signal each chunk + actively cancel
+    // the reader so the loop exits immediately.
+    if (options.signal?.aborted) {
+      try { await reader.cancel() } catch {}
+      break
+    }
     const { done, value } = await reader.read()
     if (done) break
 
@@ -318,6 +326,14 @@ export function useCodex() {
     try {
       // Agent loop — max 20 iterations (legacy cap) AND AgentBudget cap,
       // whichever is tighter.
+      // Loop-detection: small / 3B models (qwen2.5-coder:3b, llama3.2:1b)
+      // often get stuck repeating the same file_write+shell_execute sequence
+      // because a test fails and they "fix" it by rewriting the same file.
+      // Track the signature of each iteration's tool-call batch; if the same
+      // signature appears twice in a row we abort with a clear message
+      // instead of burning budget on a no-op loop.
+      let prevBatchSig: string | null = null
+      let sameBatchRepeats = 0
       for (let i = 0; i < 20 && runningRef.current && !abort.signal.aborted; i++) {
         budget.addIteration()
         const bx = budget.exceeded()
@@ -476,6 +492,24 @@ export function useCodex() {
 
         // Phase 5b (v2.4.0) — parallel tool execution via tool-executor.
         if (!runningRef.current || abort.signal.aborted) break
+
+        // Loop-detector: compute batch signature (sorted name+args pairs).
+        // Two identical batches in a row → 3 means we're definitely stuck.
+        const batchSig = toolCalls
+          .map(tc => tc.function.name + ':' + JSON.stringify(tc.function.arguments))
+          .sort()
+          .join('|')
+        if (batchSig === prevBatchSig) {
+          sameBatchRepeats++
+          if (sameBatchRepeats >= 2) {
+            const msg = `\n\n_(halted: same tool sequence repeated ${sameBatchRepeats + 1}× — model is looping. Try a larger model like Qwen 3.6 for multi-step code tasks.)_`
+            useChatStore.getState().updateMessageContent(convId, assistantMsg.id, fullContent + msg)
+            break
+          }
+        } else {
+          sameBatchRepeats = 0
+          prevBatchSig = batchSig
+        }
 
         type BatchEntry = { tc: typeof toolCalls[number]; ac: AgentToolCall; blockId: string; injectedArgs: Record<string, any> }
         const batch: BatchEntry[] = []
