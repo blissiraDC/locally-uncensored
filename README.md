@@ -37,11 +37,12 @@ No cloud. No data collection. No API keys. Auto-detects 12 local backends. Your 
 
 ## v2.3.5 — Current Release
 
-**LM Studio auto-detection fix + Windows terminal-popup cleanup, 2166 Tests**
+**LM Studio auto-detection fix + Windows terminal-popup cleanup + clearer setup scripts, 2166 Tests**
 
 ### Critical Fixes (why you want this update)
 - **LU now recognizes your LM Studio models when Ollama is also running** — if the first-launch detection found 2+ local backends (the very common "Ollama + LM Studio" setup), the backend selector modal opened but no provider got auto-enabled. Users who dismissed the modal saw zero LM Studio models in the dropdown even though LM Studio was clearly running. Fixed: the first non-Ollama backend is always pre-enabled; the selector stays as an educational picker so you can still switch primaries. Reproduced live and verified against a real LM Studio-like endpoint.
 - **No more terminal flashes on Windows** — a couple of subprocess spawns on the Windows code path were missing `CREATE_NO_WINDOW`, so killing ComfyUI/Claude Code during LU shutdown or installing SearXNG briefly flashed a console window. 100% of Windows-branch spawns are now flagged.
+- **`setup.bat` / `setup.sh` no longer lure end-users into dev mode** — previously advertised as "one-click setup" but actually launched `npm run dev` in a browser. Now each script opens with a clear dev-mode banner, a link to the installer, and a one-key prompt to continue or exit. README's setup section reframed for contributors only.
 
 ### What's still in v2.3.5 from v2.3.4
 This is a hotfix release — v2.3.4's feature surface (chat-history persistence, Ollama 0.21 compat, Codex loop guard, stop-button instant, stale-chip fix, 12 backend auto-detection, Mobile Remote, Codex streaming, Agent Mode, ERNIE-Image, Qwen 3.6, 75+ downloadable models) is unchanged. Every fix from v2.3.4 and earlier still applies.
@@ -186,15 +187,18 @@ npm install
 npm run dev
 ```
 
-### Windows One-Click Setup
+### For Contributors — Dev-Mode Setup
+
+> ⚠️ **Just want to use the app?** Grab the installer from [Releases](https://github.com/PurpleDoubleD/locally-uncensored/releases/latest) (the `.exe` or `.msi` in the **Download** section above). That gives you the full Tauri desktop app with auto-update. The commands below start LU in **browser dev-mode** — fewer features, Vite proxy noise, meant for contributing to the codebase.
 
 ```bash
 git clone https://github.com/PurpleDoubleD/locally-uncensored.git
 cd locally-uncensored
-setup.bat
+setup.bat   # Windows — installs Node, Git, Ollama, then npm run dev
+# setup.sh  # macOS / Linux equivalent
 ```
 
-Installs Node.js, Ollama, downloads an uncensored model, launches the app.
+Launches at `http://localhost:5173` in your default browser.
 
 ### Image & Video Generation
 

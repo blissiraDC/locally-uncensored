@@ -1,8 +1,27 @@
-# Locally Uncensored - Setup (PowerShell Wrapper)
-# This launches setup.bat in cmd.exe where it works correctly.
+# Locally Uncensored - Developer Setup (PowerShell)
+# Runs LU in dev-mode (Vite at localhost:5173). For the desktop app,
+# use the installer: https://github.com/PurpleDoubleD/locally-uncensored/releases
 
-$Host.UI.RawUI.WindowTitle = "Locally Uncensored - Setup"
+$Host.UI.RawUI.WindowTitle = "Locally Uncensored - Dev Setup"
 
+Write-Host ""
+Write-Host "   +---------------------------------------------------------------+" -ForegroundColor Yellow
+Write-Host "   | This script starts Locally Uncensored in DEVELOPER mode.     |" -ForegroundColor Yellow
+Write-Host "   | It runs via Vite at http://localhost:5173 in your browser,   |" -ForegroundColor Yellow
+Write-Host "   | which has fewer features than the installed desktop app.     |" -ForegroundColor Yellow
+Write-Host "   |                                                               |" -ForegroundColor Yellow
+Write-Host "   | Just want to USE the app? Download the installer instead:    |" -ForegroundColor Yellow
+Write-Host "   | https://github.com/PurpleDoubleD/locally-uncensored/releases |" -ForegroundColor Cyan
+Write-Host "   +---------------------------------------------------------------+" -ForegroundColor Yellow
+Write-Host ""
+$answer = Read-Host "Continue with developer setup? (y/N)"
+if ($answer -notmatch '^[Yy]') {
+    Write-Host ""
+    Write-Host "Cancelled. Download the installer from:" -ForegroundColor White
+    Write-Host "  https://github.com/PurpleDoubleD/locally-uncensored/releases/latest" -ForegroundColor Cyan
+    Read-Host "Press Enter to exit"
+    exit
+}
 Write-Host ""
 Write-Host ""
 Write-Host "    ##        #######   ######     ###    ##       ##       ##    ##" -ForegroundColor Magenta

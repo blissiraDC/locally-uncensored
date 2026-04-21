@@ -1,9 +1,20 @@
 @echo off
-title Locally Uncensored - Setup
-echo.
+title Locally Uncensored - Dev Setup
 echo.
 powershell -NoProfile -Command ^
-  "Write-Host '    ##        #######   ######     ###    ##       ##       ##    ##' -F Magenta;Write-Host '    ##       ##     ## ##    ##   ## ##   ##       ##        ##  ##' -F Magenta;Write-Host '    ##       ##     ## ##        ##   ##  ##       ##         ####' -F DarkMagenta;Write-Host '    ##       ##     ## ##       ##     ## ##       ##          ##' -F DarkMagenta;Write-Host '    ##       ##     ## ##       ######### ##       ##          ##' -F DarkMagenta;Write-Host '    ##       ##     ## ##    ## ##     ## ##       ##          ##' -F Magenta;Write-Host '    ########  #######   ######  ##     ## ######## ########   ##' -F Magenta;Write-Host '';Write-Host '    ##  ## ##  ##  ######  ######## ##  ##  ######   #######  ########  ######## ########' -F Magenta;Write-Host '    ##  ## ### ## ##    ## ##       ### ## ##    ## ##     ## ##     ## ##       ##     ##' -F Magenta;Write-Host '    ##  ## ####   ##       ##       ####   ##       ##     ## ##     ## ##       ##     ##' -F DarkMagenta;Write-Host '    ##  ## ## ##  ##       ######   ## ##   ######  ##     ## ########  ######   ##     ##' -F DarkMagenta;Write-Host '    ##  ## ##  ## ##       ##       ##  ##       ## ##     ## ##   ##   ##       ##     ##' -F DarkMagenta;Write-Host '    ##  ## ##  ## ##    ## ##       ##  ## ##    ## ##     ## ##    ##  ##       ##     ##' -F Magenta;Write-Host '     ####  ##  ##  ######  ######## ##  ##  ######   #######  ##    ## ######## ########' -F Magenta;Write-Host '';Write-Host '    Private, local AI. No cloud. No censorship.' -F DarkGray;Write-Host '    =================================================' -F Magenta"
+  "Write-Host '';Write-Host '   +---------------------------------------------------------------+' -F Yellow;Write-Host '   | This script starts Locally Uncensored in DEVELOPER mode.     |' -F Yellow;Write-Host '   | It runs via Vite at http://localhost:5173 in your browser,   |' -F Yellow;Write-Host '   | which has fewer features than the installed desktop app.     |' -F Yellow;Write-Host '   |                                                               |' -F Yellow;Write-Host '   | Just want to USE the app? Download the installer instead:    |' -F Yellow;Write-Host '   | https://github.com/PurpleDoubleD/locally-uncensored/releases |' -F Cyan;Write-Host '   +---------------------------------------------------------------+' -F Yellow;Write-Host ''"
+echo.
+choice /C YN /T 8 /D Y /M "Continue with developer setup? (Y/N, auto-Yes in 8s)"
+if errorlevel 2 (
+    echo.
+    echo Cancelled. Download the installer from:
+    echo   https://github.com/PurpleDoubleD/locally-uncensored/releases/latest
+    pause
+    exit /b 0
+)
+echo.
+powershell -NoProfile -Command ^
+  "Write-Host '    ##        #######   ######     ###    ##       ##       ##    ##' -F Magenta;Write-Host '    ##       ##     ## ##    ##   ## ##   ##       ##        ##  ##' -F Magenta;Write-Host '    ##       ##     ## ##        ##   ##  ##       ##         ####' -F DarkMagenta;Write-Host '    ##       ##     ## ##       ##     ## ##       ##          ##' -F DarkMagenta;Write-Host '    ##       ##     ## ##       ######### ##       ##          ##' -F DarkMagenta;Write-Host '    ##       ##     ## ##    ## ##     ## ##       ##          ##' -F Magenta;Write-Host '    ########  #######   ######  ##     ## ######## ########   ##' -F Magenta;Write-Host '';Write-Host '    ##  ## ##  ##  ######  ######## ##  ##  ######   #######  ########  ######## ########' -F Magenta;Write-Host '    ##  ## ### ## ##    ## ##       ### ## ##    ## ##     ## ##     ## ##       ##     ##' -F Magenta;Write-Host '    ##  ## ####   ##       ##       ####   ##       ##     ## ##     ## ##       ##     ##' -F DarkMagenta;Write-Host '    ##  ## ## ##  ##       ######   ## ##   ######  ##     ## ########  ######   ##     ##' -F DarkMagenta;Write-Host '    ##  ## ##  ## ##       ##       ##  ##       ## ##     ## ##   ##   ##       ##     ##' -F DarkMagenta;Write-Host '    ##  ## ##  ## ##    ## ##       ##  ## ##    ## ##     ## ##    ##  ##       ##     ##' -F Magenta;Write-Host '     ####  ##  ##  ######  ######## ##  ##  ######   #######  ##    ## ######## ########' -F Magenta;Write-Host '';Write-Host '    Private, local AI. No cloud. No censorship. (DEV MODE)' -F DarkGray;Write-Host '    =================================================' -F Magenta"
 echo.
 
 where node >nul 2>nul
