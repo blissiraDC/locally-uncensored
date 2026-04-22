@@ -66,12 +66,17 @@ const DEFAULT_PROVIDERS: Record<ProviderId, ProviderConfig> = {
 
 interface ProviderState {
   providers: Record<ProviderId, ProviderConfig>
+  /** Persisted: user opted out of the multi-backend selector modal. When true,
+   * AppShell never re-shows the modal on startup even if multiple backends are
+   * running. User can still add / remove providers via Settings → Providers. */
+  hideBackendSelector: boolean
 
   setProviderConfig: (id: ProviderId, updates: Partial<ProviderConfig>) => void
   setProviderApiKey: (id: ProviderId, key: string) => void
   getProviderApiKey: (id: ProviderId) => string
   getEnabledProviders: () => ProviderConfig[]
   resetProvider: (id: ProviderId) => void
+  setHideBackendSelector: (hide: boolean) => void
 }
 
 // ── Zustand Store ──────────────────────────────────────────────
@@ -80,6 +85,9 @@ export const useProviderStore = create<ProviderState>()(
   persist(
     (set, get) => ({
       providers: DEFAULT_PROVIDERS,
+      hideBackendSelector: false,
+
+      setHideBackendSelector: (hide) => set({ hideBackendSelector: hide }),
 
       setProviderConfig: (id, updates) => {
         set((state) => ({
@@ -128,8 +136,11 @@ export const useProviderStore = create<ProviderState>()(
     {
       name: 'lu-providers',
       version: 1,
-      // Don't persist transient state, only configs
-      partialize: (state) => ({ providers: state.providers }),
+      // Don't persist transient state, only configs + user's "don't show again" preference
+      partialize: (state) => ({
+        providers: state.providers,
+        hideBackendSelector: state.hideBackendSelector,
+      }),
     }
   )
 )

@@ -57,4 +57,16 @@ describe('AppShell multi-backend auto-enable', () => {
     // refactor accidentally trying to auto-enable with an empty list.
     expect(src).toContain('if (backends.length === 0) return')
   })
+
+  // v2.3.9 — Discord-reported: "popup comes back every 5-10 seconds".
+  // The sessionStorage guard was not enough in some conditions (WebView2 reload
+  // via the backup-restore triad, browser cache eviction, etc). We now also
+  // gate on a persisted flag so existing users who clicked "Don't show again"
+  // stop seeing the modal for good.
+  it('persistently gates the selector on hideBackendSelector', () => {
+    // The guard must live inside the multi-backend branch (i.e. after the
+    // length === 1 early-return) so single-backend users still see nothing.
+    expect(src).toMatch(/hideBackendSelector/)
+    expect(src).toMatch(/if \(useProviderStore\.getState\(\)\.hideBackendSelector\) return/)
+  })
 })

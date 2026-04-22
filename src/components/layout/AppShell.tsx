@@ -413,6 +413,12 @@ export function AppShell() {
       // Single backend → we're done (already enabled above, or was Ollama).
       if (backends.length === 1) return
 
+      // User previously opted out of the selector (tickbox "don't show again")
+      // → never re-show. They manage providers via Settings → Providers.
+      // This is the persistent guard; the sessionStorage check above is just
+      // the within-session guard.
+      if (useProviderStore.getState().hideBackendSelector) return
+
       // Multiple backends detected → show selection dialog so the user can
       // change which one is the primary openai-compat provider if they want.
       setDetectedBackends(backends)
