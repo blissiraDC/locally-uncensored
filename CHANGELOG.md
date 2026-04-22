@@ -2,6 +2,35 @@
 
 All notable changes to Locally Uncensored are documented here.
 
+## [2.3.8] - 2026-04-22
+
+### Fixed
+- **Codex `file_write` now actually lands on disk in the expected folder** — the built-in tool executors (`fs_read`, `fs_write`, `fs_list`, `fs_search`, `shell_execute`, `execute_code`) in `src/api/mcp/builtin-tools.ts` never threaded the active chat-id through to Rust even though `agent-context.ts` was designed for exactly that. The documented per-chat workspace isolation (`~/agent-workspace/<chatId>/`) silently fell through to a shared `default/` fallback whenever the model emitted a relative path, and no per-chat isolation ever happened. Now every executor reads `getActiveChatId()` and spreads it into the `backendCall` payload so Rust's `resolve_path()` / `resolve_agent_path()` can route relative paths into the right per-chat folder. `src/api/agents.ts:executeTool` also now returns the real `data.path` from Rust's `{status:"saved", path:…}` response instead of a hard-coded `"File written successfully"` string that masked write failures behind a green ✓ in the UI.
+- **Codex chat bubble no longer floods with raw `{"name":"file_write", "arguments":{…}}` JSON objects for models that emit tool calls as content** — qwen2.5-coder:3b and similar small coder models put the tool call in the `content` field instead of the native `tool_calls` array. The pre-2.3.8 extractor caught the call but left the raw JSON visible in the chat, and the narrative around it ("I'm about to verify…" + ```python fence echoing the file content) was concatenated onto `fullContent` every iteration — a 4-iteration task rendered as four stacked JSON blobs with four duplicated paragraphs. Fix: new `stripRanges()` helper uses the `[startIdx, endIdx]` positions the balanced-brace extractor already computes to remove the exact tool-call substrings (not a greedy regex that fails on nested braces), and an `extractedFromContent` flag drops the residual narrative entirely so qwen's Codex UI now looks identical to gemma4's.
+- **Balanced-brace JSON extractor replaces the greedy `\{[^}]*\}` regex** — the old regex failed on any JSON with nested braces OR string values containing `{` (e.g. Python f-strings `f'Hello, {name}!'` emitted by qwen2.5-coder). Replaced with a locate-header-then-balance scanner that respects string escapes. Fixes `extractToolCallsFromContent` for any code that uses f-strings or dict literals in string values.
+- **Arg-validator error-hint now lists the exact missing fields with types and what the model actually sent** — pre-2.3.8 the generic "Re-issue the tool call with valid arguments matching the tool schema" hint meant small models (hermes3:8b, qwen2.5-coder:3b) kept retrying the same malformed call. Now the hint looks like `file_write requires {path: string, content: string}. You sent {command}. Retry with all required fields present.` — concrete enough that small models actually self-correct.
+
+### Added
+- **Context compaction in Codex** — long multi-tool turns used to blow past 8K-context local models' windows; Codex now mirrors Agent Mode's `compactMessages(…, Math.floor(maxCtx * 0.8))` call before each sampling pass, summarising older turns while keeping recent messages intact.
+- **Memory injection + extraction in Codex** — Codex was the only chat surface that ignored the memory system. It now reads `useMemoryStore.getState().getMemoriesForPrompt(instruction, contextTokens)` into the system prompt at dispatch time, and runs `extractMemoriesFromPair()` after the turn lands. Parity with Chat + Agent Mode.
+- **`CODEX_CATEGORIES` tool-scope filter** — Codex now filters `toolRegistry.getAll()` to the `filesystem | terminal | system | web` categories before passing tools to the model. The pre-2.3.8 code had the constant defined but never used, so small models were getting confused by `image_generate`, `screenshot`, `run_workflow`, and `process_list` showing up next to `file_write` and emitting tool calls with the wrong argument shape (confirmed repro: hermes3:8b calling `file_write({command: "python -m unittest …"})` when both shell_execute and file_write were in scope). The filter narrows the blade.
+- **Codex iter cap raised 20 → 50** — large refactors across 10+ files legitimately need more than 20 tool calls. Budget still caps via `agentMaxToolCalls` / `agentMaxIterations` (defaults 50 / 25 from settings).
+- **Family grouping in ModelSelector dropdown** — models are now grouped by family header (QWEN / GEMMA / LLAMA / HERMES / PHI / DOLPHIN / MISTRAL / DEEPSEEK / …) in the Codex/Chat/Code dropdown, with a subscribe effect that re-fetches the list when any provider's `enabled`/`baseUrl` changes so users don't have to open Model Manager to see newly-enabled providers.
+
+### E2E verified
+5 tool-capable Ollama models, each in a fresh Codex chat, writing to `C:\Users\<user>\Desktop\<test-folder>\`:
+- **gemma4:e4b** — both simple (`file_write hello.py`) and a real Codex-style task ("build cli.py with argparse add/list/clear + test_cli.py with 4 unittest tests + run `python -m unittest test_cli.py` and report") succeeded end-to-end. Full trace: `file_write cli.py (2556B)` → `file_write test_cli.py (3759B)` → `shell_execute python -m unittest test_cli.py` → real output `....\nRan 4 tests in 1.612s\nOK` → final summary. 3 clean tool blocks in the UI, single final answer, Memory badge fired on extraction.
+- **qwen2.5-coder:3b** — after the `stripRanges` + `extractedFromContent` fix, chat UI is visually identical to gemma4's (tool blocks + single summary, zero raw JSON).
+- **hermes3:8b** — clean native tool-call flow.
+- **llama3.1:8b** — clean native tool-call flow (freshly pulled for this verification).
+- **llama3.2:1b** — plumbing correct; the 1B model hallucinated a Unix-style `/Users/ddrob/Desktop/tiny.py` path that landed at `C:/Users/ddrob/Desktop/tiny.py` on Windows instead of in the workdir. Model-quality artefact, not a Codex bug. Documented for users on the smallest class of models.
+
+### Changed
+- Test suite 2202 → 2202 (full regression) after `tool-call-repair` gained `extractToolCallsWithRanges` + `stripRanges` + `findBalancedBraceEnd` + `findPrecedingOpenBrace`.
+
+### Notes
+- Drop-in upgrade from v2.3.7. No breaking changes. No localStorage migration. Existing Codex chats continue to work; new chats benefit from the per-chat workspace isolation now that `chatId` threads through.
+
 ## [2.3.7] - 2026-04-22
 
 ### Added

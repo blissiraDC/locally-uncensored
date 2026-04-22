@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, Check, Loader2, Power } from 'lucide-react'
 import { useModels } from '../../hooks/useModels'
 import { useModelStore } from '../../stores/modelStore'
+import { useProviderStore } from '../../stores/providerStore'
 import { unloadAllModels } from '../../api/ollama'
 import { displayModelName } from '../../api/providers'
 import { formatBytes } from '../../lib/formatters'
@@ -38,23 +39,85 @@ function getProviderBadge(model: AIModel) {
   return PROVIDER_BADGE[provider] || PROVIDER_BADGE.ollama
 }
 
-// ── Group models by provider ──────────────────────────────────
+// ── Group models by family (Qwen / Gemma / Llama / …) ────────
+//
+// Users care more about model lineage than about which local backend
+// they're pointing at. "Qwen 3.6 27B" appears once under Qwen whether
+// it came from Ollama or LM Studio — the per-row provider badge
+// (rendered below) keeps that detail visible.
+//
+// Pure visual grouping — model name + provider still resolve chat
+// routing exactly as before.
 
-function groupByProvider(models: AIModel[]): { provider: string; models: AIModel[] }[] {
+// Normalize a model name into a comparable base form:
+//   openai::qwen3.6-27b        → qwen3.6-27b
+//   richardyoung/qwen3-14b:…   → qwen3-14b
+//   Qwen3.6-27B-Q4_K_M.gguf    → qwen3.6-27b-q4_k_m.gguf
+function normalizeModelName(name: string): string {
+  return (name || '')
+    .toLowerCase()
+    .replace(/^[^:]+::/, '')    // strip openai:: / anthropic::
+    .replace(/^[^/]+\//, '')    // strip repo-author/ prefix
+    .replace(/:.+$/, '')        // strip :tag suffix
+}
+
+// Ordered — first match wins. Prefixes/infixes on the normalized name.
+const FAMILY_MATCHERS: Array<{ family: string; test: RegExp }> = [
+  { family: 'Qwen',       test: /^qwen|^qwq/ },
+  { family: 'Gemma',      test: /^gemma/ },
+  { family: 'Llama',      test: /^llama|^meta[-_]?llama/ },
+  { family: 'Mistral',    test: /^mistral|^mixtral|^mistral-nemo|^mistral-small|^mistral-large/ },
+  { family: 'DeepSeek',   test: /^deepseek/ },
+  { family: 'Phi',        test: /^phi-?\d|^phi_?\d/ },
+  { family: 'Hermes',     test: /^hermes|^nous-/ },
+  { family: 'Dolphin',    test: /^dolphin/ },
+  { family: 'Claude',     test: /^claude/ },
+  { family: 'GPT-OSS',    test: /^gpt-oss/ },
+  { family: 'GPT / o-series', test: /^gpt-|^o1-|^o3-/ },
+  { family: 'Command',    test: /^command/ },
+  { family: 'GLM',        test: /^glm|^chatglm|^zai/ },
+  { family: 'Yi',         test: /^yi-/ },
+  { family: 'Gemini',     test: /^gemini/ },
+  { family: 'Grok',       test: /^grok/ },
+]
+
+function getModelFamily(modelName: string): string {
+  const n = normalizeModelName(modelName)
+  for (const { family, test } of FAMILY_MATCHERS) {
+    if (test.test(n)) return family
+  }
+  return 'Other'
+}
+
+// Family display order — Qwen/Gemma/Llama surface first since they're
+// the most common local-chat picks; cloud-only families (Claude/GPT)
+// come after the local ones; 'Other' always last.
+const FAMILY_ORDER: string[] = [
+  'Qwen', 'Gemma', 'Llama', 'Mistral', 'DeepSeek', 'Phi', 'Hermes',
+  'Dolphin', 'GLM', 'GPT-OSS', 'Yi', 'Command',
+  'Claude', 'GPT / o-series', 'Gemini', 'Grok',
+]
+
+function groupByFamily(models: AIModel[]): { family: string; models: AIModel[] }[] {
   const groups: Record<string, AIModel[]> = {}
   for (const m of models) {
-    const providerName = ('providerName' in m && m.providerName) || 'Ollama'
-    if (!groups[providerName]) groups[providerName] = []
-    groups[providerName].push(m)
+    const fam = getModelFamily(m.name)
+    if (!groups[fam]) groups[fam] = []
+    groups[fam].push(m)
   }
 
   return Object.entries(groups)
     .sort(([a], [b]) => {
-      if (a === 'Ollama') return -1
-      if (b === 'Ollama') return 1
+      if (a === 'Other') return 1
+      if (b === 'Other') return -1
+      const ai = FAMILY_ORDER.indexOf(a)
+      const bi = FAMILY_ORDER.indexOf(b)
+      if (ai >= 0 && bi >= 0) return ai - bi
+      if (ai >= 0) return -1
+      if (bi >= 0) return 1
       return a.localeCompare(b)
     })
-    .map(([provider, models]) => ({ provider, models }))
+    .map(([family, models]) => ({ family, models }))
 }
 
 // ── Component ─────────────────────────────────────────────────
@@ -69,6 +132,20 @@ export function ModelSelector() {
 
   useEffect(() => { fetchModels() }, [fetchModels])
 
+  // Refetch when any provider's enabled state or baseUrl changes (e.g. user
+  // enables LM Studio / adds Anthropic key in Settings, or the backend
+  // picker activates an OpenAI-compatible provider). Without this the
+  // dropdown stays stuck on whatever providers were enabled at mount time.
+  useEffect(() => {
+    const unsub = useProviderStore.subscribe((state, prev) => {
+      const changed = (Object.keys(state.providers) as Array<keyof typeof state.providers>)
+        .some(id => state.providers[id]?.enabled !== prev.providers[id]?.enabled
+          || state.providers[id]?.baseUrl !== prev.providers[id]?.baseUrl)
+      if (changed) fetchModels()
+    })
+    return () => unsub()
+  }, [fetchModels])
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
@@ -80,8 +157,14 @@ export function ModelSelector() {
   const activeDisplayName = activeModel ? displayModelName(activeModel).split(':')[0] : 'Select Model'
   const activeModelObj = models.find((m) => m.name === activeModel)
   const activeType = activeModelObj?.type || 'text'
-  const groups = groupByProvider(models)
-  const hasOllamaModels = models.some(m => m.type === 'text' && (('provider' in m && m.provider === 'ollama') || !('provider' in m)))
+  // Chat dropdown shows TEXT models only — image/video live in the
+  // Create view's own picker. Everything here is grouped by the model
+  // FAMILY (Qwen/Gemma/Llama/…), not by provider, because users pick
+  // models by lineage first and the backend that serves them is a
+  // per-row badge.
+  const textModels = models.filter(m => m.type === 'text')
+  const groups = groupByFamily(textModels)
+  const hasOllamaModels = textModels.some(m => ('provider' in m && m.provider === 'ollama') || !('provider' in m))
 
   return (
     <div ref={ref} className="relative">
@@ -128,17 +211,17 @@ export function ModelSelector() {
           >
             {/* Scrollable model list */}
             <div className="py-1 max-h-[280px] overflow-y-auto scrollbar-thin">
-              {models.length === 0 && (
+              {textModels.length === 0 && (
                 <p className="text-[0.65rem] text-gray-600 text-center py-3">No models available</p>
               )}
 
-              {groups.map(({ provider, models: groupModels }) => (
-                <div key={provider}>
+              {groups.map(({ family, models: groupModels }) => (
+                <div key={family}>
                   {/* Section header */}
                   {groups.length > 1 && (
                     <div className="px-2.5 pt-2 pb-0.5">
                       <span className="text-[0.55rem] font-medium uppercase tracking-widest text-gray-600">
-                        {provider}
+                        {family}
                       </span>
                     </div>
                   )}

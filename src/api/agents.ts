@@ -280,11 +280,18 @@ export async function executeTool(
   tool: ToolName,
   args: Record<string, any>
 ): Promise<string> {
+  // Thread the active agent loop's chat id through to Rust so relative paths
+  // land in the per-chat workspace (~/agent-workspace/<chatId>/) instead of
+  // the shared `default/` fallback.
+  const { getActiveChatId } = await import("./agent-context");
+  const chatId = getActiveChatId() || undefined;
+
   switch (tool) {
     case "code_execute": {
       const data = await backendCall("execute_code", {
         code: args.code,
         timeout: 30000,
+        chatId,
       });
       const output = data.stdout || "";
       const err = data.stderr || "";
@@ -293,13 +300,18 @@ export async function executeTool(
     }
 
     case "file_read": {
-      const data = await backendCall("file_read", { path: args.path });
+      const data = await backendCall("file_read", { path: args.path, chatId });
       return data.content || "";
     }
 
     case "file_write": {
-      const data = await backendCall("file_write", { path: args.path, content: args.content });
-      return data.message || "File written successfully";
+      // Rust returns {status: 'saved', path: <absolute>}. Return the real
+      // resolved path so the model knows where the file actually landed.
+      // The old "File written successfully" fallback was a silent lie when
+      // Rust failed — surfaced as ✓ in the UI with no file on disk.
+      const data = await backendCall("file_write", { path: args.path, content: args.content, chatId });
+      if (data.status === "saved" && data.path) return `File saved: ${data.path}`;
+      return data.message || JSON.stringify(data);
     }
 
     case "web_search": {

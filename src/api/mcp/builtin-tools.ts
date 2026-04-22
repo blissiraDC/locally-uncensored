@@ -3,10 +3,22 @@
 import type { MCPToolDefinition } from './types'
 import type { ToolRegistry } from './tool-registry'
 import { backendCall, fetchExternal } from '../backend'
+import { getActiveChatId } from '../agent-context'
 import { useAgentWorkflowStore } from '../../stores/agentWorkflowStore'
 import { WorkflowEngine } from '../../lib/workflow-engine'
 import type { StepResult } from '../../types/agent-workflows'
 import { DELEGATE_TASK_TOOL_DEF, buildDelegateExecutor } from '../agents/sub-agent'
+
+/**
+ * Helper: current chat id as a plain `{ chatId }` fragment to spread into
+ * backendCall payloads. Returns `{}` when no agent loop is active — the
+ * Rust side then falls back to `agent-workspace/default/` for relative
+ * paths (and uses absolute paths as-is regardless).
+ */
+function chatCtx(): { chatId?: string } {
+  const id = getActiveChatId()
+  return id ? { chatId: id } : {}
+}
 
 // ── Tool Definitions ────────────────────────────────────────────
 
@@ -321,13 +333,18 @@ async function executeWebFetch(args: Record<string, any>): Promise<string> {
 }
 
 async function executeFileRead(args: Record<string, any>): Promise<string> {
-  const data = await backendCall('fs_read', { path: args.path })
+  const data = await backendCall('fs_read', { path: args.path, ...chatCtx() })
   return data.content || ''
 }
 
 async function executeFileWrite(args: Record<string, any>): Promise<string> {
-  const data = await backendCall('fs_write', { path: args.path, content: args.content })
-  return data.status === 'saved' ? `File saved: ${data.path}` : JSON.stringify(data)
+  const data = await backendCall('fs_write', { path: args.path, content: args.content, ...chatCtx() })
+  // Rust returns {status: 'saved', path: <absolute>}. Surface the real path
+  // so the model (and the file-change event) knows WHERE the write landed —
+  // especially important when chatId is None and Rust routes a relative path
+  // to `agent-workspace/default/`.
+  if (data.status === 'saved' && data.path) return `File saved: ${data.path}`
+  return JSON.stringify(data)
 }
 
 async function executeFileList(args: Record<string, any>): Promise<string> {
@@ -335,6 +352,7 @@ async function executeFileList(args: Record<string, any>): Promise<string> {
     path: args.path,
     recursive: args.recursive || false,
     pattern: args.pattern || null,
+    ...chatCtx(),
   })
   if (Array.isArray(data.entries)) {
     return data.entries
@@ -349,6 +367,7 @@ async function executeFileSearch(args: Record<string, any>): Promise<string> {
     path: args.path,
     pattern: args.pattern,
     max_results: args.maxResults || 50,
+    ...chatCtx(),
   })
   if (Array.isArray(data.results)) {
     return data.results
@@ -368,6 +387,7 @@ async function executeShellExecute(args: Record<string, any>): Promise<string> {
     cwd: args.cwd || null,
     timeout: args.timeout || 120000,
     shell: args.shell || null,
+    ...chatCtx(),
   })
   const output = data.stdout || ''
   const err = data.stderr || ''
@@ -377,7 +397,7 @@ async function executeShellExecute(args: Record<string, any>): Promise<string> {
 }
 
 async function executeCodeExecute(args: Record<string, any>): Promise<string> {
-  const data = await backendCall('execute_code', { code: args.code, timeout: 30000 })
+  const data = await backendCall('execute_code', { code: args.code, timeout: 30000, ...chatCtx() })
   const output = data.stdout || ''
   const err = data.stderr || ''
   if (data.timedOut) return `Timed out.\n${err}`

@@ -460,21 +460,66 @@ pub fn detect_model_path(provider: String) -> Result<serde_json::Value, String> 
     let home = dirs::home_dir().ok_or("Cannot find home directory")?;
     let provider_lower = provider.to_lowercase();
 
+    // Providers with managed model directories. Checked in order, first
+    // existing path wins. Falls through to LU fallback dir if none match —
+    // that dir is then indexed by LU's own scanner (future work) or the
+    // user can point their backend at it manually.
+    //
+    // Covers the 15 providers in src/api/providers/types.ts — only the ones
+    // with a conventional managed dir (most CLI-run backends take a path
+    // arg, so there's no one-true-path for them).
     let candidates: Vec<PathBuf> = match provider_lower.as_str() {
+        // Ollama manages its own blob store — treat as a pointer so LU can
+        // later auto-create a Modelfile pointing at the downloaded GGUF.
+        "ollama" => vec![
+            home.join(".ollama").join("models"),
+        ],
+        // LM Studio 0.3.x+ uses ~/.lmstudio/models (Windows/Mac/Linux).
+        // Legacy 0.2.x used ~/.cache/lm-studio/models.
         "lm studio" | "lmstudio" => vec![
+            home.join(".lmstudio").join("models"),
             home.join(".cache").join("lm-studio").join("models"),
         ],
+        // Jan: modern installers on Windows write to %APPDATA%\Jan\data\models,
+        // Mac/Linux fall back to ~/jan/models.
         "jan" => vec![
             dirs::data_dir().unwrap_or_else(|| home.clone()).join("Jan").join("data").join("models"),
+            home.join(".jan").join("models"),
             home.join("jan").join("models"),
         ],
+        // GPT4All: Windows ships %LOCALAPPDATA%\nomic.ai\GPT4All. Mac/Linux
+        // use ~/.cache/gpt4all. We check both.
         "gpt4all" => vec![
             dirs::data_local_dir().unwrap_or_else(|| home.clone()).join("nomic.ai").join("GPT4All"),
+            home.join(".cache").join("gpt4all"),
         ],
+        // LocalAI: single conventional path.
         "localai" => vec![
             home.join(".localai").join("models"),
         ],
-        _ => vec![], // vLLM, llama.cpp, etc. — no standard path
+        // text-generation-webui (aka oobabooga): installs into its own folder,
+        // no one-true-path. Check common locations.
+        "oobabooga" | "text-generation-webui" | "tgw" => vec![
+            home.join("text-generation-webui").join("models"),
+            home.join("oobabooga").join("models"),
+        ],
+        // KoboldCpp: single-binary, model dir next to the binary or ~ default.
+        "koboldcpp" | "kobold" => vec![
+            home.join(".koboldcpp").join("models"),
+            home.join("koboldcpp").join("models"),
+        ],
+        // llama.cpp: no managed dir — users typically keep GGUFs anywhere.
+        // We default to ~/models (common convention when running server.sh).
+        "llama.cpp" | "llamacpp" | "llama-cpp" => vec![
+            home.join("models"),
+            home.join("llama.cpp").join("models"),
+        ],
+        // vLLM, SGLang, TabbyAPI, Aphrodite, TGI: all CLI-run, no conventional
+        // dir. Fall through to LU's fallback.
+        //
+        // Cloud providers (OpenRouter, Groq, Together, DeepSeek, Mistral,
+        // OpenAI, Anthropic, Custom) don't use a local model dir at all.
+        _ => vec![],
     };
 
     for path in &candidates {

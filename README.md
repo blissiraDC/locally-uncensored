@@ -35,15 +35,32 @@ No cloud. No data collection. No API keys. Auto-detects 12 local backends. Your 
 
 ---
 
-## v2.3.7 — Current Release
+## v2.3.8 — Current Release
 
-**Remote Ollama + `OLLAMA_HOST` env var support, 2202 Tests**
+**Codex end-to-end overhaul — tool calls that actually land on disk, clean UI across all models, memory + context compaction**
 
 ### Critical Fixes (why you want this update)
-- **Remote Ollama now actually works** — Issue #31 by @k-wilkinson. Pre-2.3.7 the Ollama endpoint was hardcoded to `localhost:11434` in four places (frontend URL helper, Vite dev proxy, Ollama provider dev-mode path, Rust pull-model command), so setting `OLLAMA_HOST=0.0.0.0:11434`, `192.168.1.x:11434` or any custom port was silently ignored — LU reported "No local backend detected", model dropdowns stayed empty, Settings → Providers → Ollama → Endpoint field had zero effect, and the Test button always said Failed. Fixed end-to-end: a single `ollama_base` field reads, in priority, the persisted GUI value, then the `OLLAMA_HOST` env var (same semantics as Ollama itself), then the default. Vite dev proxy target is computed from `OLLAMA_HOST` at startup, the Rust SSRF allow-list in `proxy_localhost` accepts the configured Ollama + ComfyUI hosts, `pull_model_stream` reads from state.
+- **Codex file_write actually writes to disk now** — pre-2.3.8 Codex's built-in tool executors (`fs_read`, `fs_write`, `fs_list`, `fs_search`, `shell_execute`, `execute_code`) never threaded the active chat-id through to the Rust backend even though the whole `agent-context.ts` plumbing was designed for it. The documented per-chat workspace isolation (`~/agent-workspace/<chatId>/`) silently fell through to a shared `default/` fallback, and relative paths the model emitted landed nowhere useful. Fixed at the frontend layer — every builtin executor now calls `backendCall('fs_write', { …, chatId: getActiveChatId() })`. `agents.ts:executeTool` also returns the real `data.path` from Rust instead of a fake `"File written successfully"` string that hid write failures behind a green ✓.
+- **Clean Codex UI for every model, not just the ones that emit native `tool_calls`** — qwen2.5-coder:3b (and other small coder models) emit tool calls as raw JSON in the `content` field instead of the native `tool_calls` array. The pre-2.3.8 extractor caught the JSON but left the raw `{"name":"file_write", "arguments": {...}}` object visible in the chat bubble, plus every iteration's narrative ("I'm about to verify…" + a ```python fence with the file content) was concatenated onto `fullContent` — so a 4-tool-call turn looked like four stacked JSON blobs with four duplicated paragraphs. Fix: new `stripRanges()` helper uses the balanced-brace positions the extractor already computes to remove the exact tool-call JSON substrings (not a greedy regex that fails on f-strings with `{name}`), and an `extractedFromContent` flag drops the residual narrative entirely so qwen's Codex chat now looks identical to gemma4's.
+- **Context compaction in Codex** — long multi-tool turns used to blow past the model's context window on 8K-context local models; Codex now summarises older turns via `compactMessages` before every sampling call. Parity with Agent Mode.
+- **Memory injection + extraction in Codex** — Codex was the only chat surface that ignored the memory system. It now reads `getMemoriesForPrompt()` at dispatch time and runs `extractMemoriesFromPair()` after the turn lands, so long-running coding sessions accumulate context like everywhere else.
+- **Tool-scope filter for Codex** — Codex now filters the registry to `filesystem | terminal | system | web` categories before passing tools to the model. Small models were getting confused by `image_generate`, `screenshot`, `run_workflow`, `process_list` showing up next to `file_write` and emitting tool calls with the wrong argument shape (e.g. `file_write({command: …})`). The filter narrows the blade.
+- **Balanced-brace JSON extractor** — the naive `\{[^}]*\}` regex in `tool-call-repair.ts` failed on any nested brace or string value containing `{` (e.g. Python f-strings `f'Hello, {name}!'`). Replaced with a locate-header-then-balance scanner that respects string escapes. Fixes qwen2.5-coder:3b tool-call extraction for any code that uses f-strings.
+- **Concrete arg-validator error hints** — when a tool call fails schema validation, the retry message sent back to the model now lists the exact required fields with their types + the keys the model actually sent ("`file_write requires {path: string, content: string}. You sent {command}. Retry with all required fields present.`") instead of the old generic "matching the tool schema" hint. Small models self-correct much better with a concrete example.
+- **Codex iter cap raised 20 → 50** — large refactors across 10+ files legitimately need more than 20 tool calls. Budget still caps via `agentMaxToolCalls` / `agentMaxIterations` (defaults 50 / 25 from settings).
 
-### What's still in v2.3.7 from v2.3.6
-Drop-in upgrade. v2.3.6's configurable ComfyUI host (Shoaib's remote ComfyUI feature), LM Studio / OpenAI-compat CORS fix, and ComfyUI port persistence all remain in place.
+### E2E verified on this build
+5 tool-capable Ollama models × simple `file_write` task:
+| Model | Result | Native tool_calls | UI |
+|---|---|---|---|
+| gemma4:e4b | ✅ + full CLI task: 4/4 unittest pass | yes | clean |
+| qwen2.5-coder:3b | ✅ | no (extracted from content) | clean (after stripRanges) |
+| hermes3:8b | ✅ | yes | clean |
+| llama3.1:8b | ✅ | yes | clean |
+| llama3.2:1b | ✅ (model emitted Unix `/Users/…` path, plumbing correct) | yes | clean |
+
+### What's still in v2.3.8 from v2.3.7
+Drop-in upgrade. v2.3.7's remote Ollama + `OLLAMA_HOST` env var support, v2.3.6's configurable ComfyUI host, LM Studio / OpenAI-compat CORS fix, and ComfyUI port persistence all remain in place.
 
 ### Remote Access + Mobile Web App
 - **Access your AI from your phone** — Dispatch via LAN or Cloudflare Tunnel (Internet)

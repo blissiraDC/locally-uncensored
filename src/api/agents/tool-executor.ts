@@ -237,12 +237,32 @@ async function runSingle(
     if (!v.valid) {
       schemaValidated = false
       validationError = formatValidationErrors(v.errors)
+      // Build a concrete retry hint from the tool's schema: list required
+      // fields with their types + show what the model actually sent. Small
+      // models self-correct MUCH better when they see the shape expected,
+      // not just "matching the tool schema". Example output:
+      //   "file_write requires {path: string, content: string}. You sent
+      //    {command}. Retry with both required fields."
+      const required = Array.isArray(tool.inputSchema.required) ? tool.inputSchema.required : []
+      const props = tool.inputSchema.properties ?? {}
+      const schemaStr = required.length
+        ? required
+            .map((k) => {
+              const s = (props as Record<string, any>)[k]
+              const typ = s && typeof s === 'object' ? (s.type || 'any') : 'any'
+              return `${k}: ${typ}`
+            })
+            .join(', ')
+        : '(no required fields)'
+      const sentKeys = Object.keys(req.args ?? {})
+      const sentStr = sentKeys.length ? sentKeys.join(', ') : '(empty)'
+      const hint = `${req.toolName} requires {${schemaStr}}. You sent {${sentStr}}. Retry with all required fields present.`
       return finalize({
         id: req.id,
         toolName: req.toolName,
         status: 'failed',
         error: `Invalid arguments: ${validationError}`,
-        errorHint: 'Re-issue the tool call with valid arguments matching the tool schema.',
+        errorHint: hint,
         dispatchedArgs: req.args,
         argsHash,
         sideEffectKey,
