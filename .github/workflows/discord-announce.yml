@@ -14,6 +14,12 @@ name: Discord release announcement
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to announce (e.g. v2.3.8)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -23,14 +29,15 @@ jobs:
     # Poll the build-tauri job on the same release. Not strictly required —
     # auto-update uses the release's latest.json which only uploads after
     # tauri-action finishes — but announcing before installers exist confuses
-    # people who click the download link and hit 404. Single 6-min ceiling
-    # matches our normal build time (~5 min).
+    # people who click the download link and hit 404. Single 12-min ceiling
+    # matches our normal build time (~11 min for Windows + Linux parallel).
     runs-on: ubuntu-latest
     steps:
       - name: Wait for tauri artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.event.release.tag_name }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
           set -euo pipefail
           echo "Waiting for $TAG installers to appear on the release…"
@@ -49,13 +56,31 @@ jobs:
     needs: wait-for-build
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve release fields (covers workflow_dispatch)
+        id: rel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          TITLE=$(gh release view "$TAG" --json name --jq .name)
+          URL=$(gh release view "$TAG" --json url --jq .url)
+          BODY_FILE="$RUNNER_TEMP/release-body.md"
+          gh release view "$TAG" --json body --jq .body > "$BODY_FILE"
+          {
+            echo "tag=$TAG"
+            echo "title=$TITLE"
+            echo "url=$URL"
+            echo "body_file=$BODY_FILE"
+          } >> "$GITHUB_OUTPUT"
       - name: Post to #releases
         env:
           WEBHOOK: ${{ secrets.DISCORD_RELEASES_WEBHOOK }}
-          TAG: ${{ github.event.release.tag_name }}
-          TITLE: ${{ github.event.release.name }}
-          BODY: ${{ github.event.release.body }}
-          URL: ${{ github.event.release.html_url }}
+          TAG: ${{ steps.rel.outputs.tag }}
+          TITLE: ${{ steps.rel.outputs.title }}
+          URL: ${{ steps.rel.outputs.url }}
+          BODY_FILE: ${{ steps.rel.outputs.body_file }}
         run: |
           python3 - <<'PY'
           import json, os, urllib.request, urllib.error, sys
@@ -63,7 +88,11 @@ jobs:
           if not webhook:
               sys.exit("DISCORD_RELEASES_WEBHOOK not set")
           tag = os.environ["TAG"]
-          body = (os.environ.get("BODY") or "").strip()
+          body_file = os.environ.get("BODY_FILE")
+          body = ""
+          if body_file and os.path.exists(body_file):
+              with open(body_file, "r", encoding="utf-8") as f:
+                  body = f.read().strip()
           url  = os.environ["URL"]
           # Discord single-message limit is 2000 chars. Leave room for our
           # own header (~120) and footer (~100), cap the body at 1700.
@@ -86,9 +115,9 @@ jobs:
       - name: Post short blurb to #announcements
         env:
           WEBHOOK: ${{ secrets.DISCORD_ANNOUNCEMENTS_WEBHOOK }}
-          TAG: ${{ github.event.release.tag_name }}
-          URL: ${{ github.event.release.html_url }}
-          BODY: ${{ github.event.release.body }}
+          TAG: ${{ steps.rel.outputs.tag }}
+          URL: ${{ steps.rel.outputs.url }}
+          BODY_FILE: ${{ steps.rel.outputs.body_file }}
         run: |
           python3 - <<'PY'
           import json, os, re, urllib.request, sys
@@ -97,7 +126,11 @@ jobs:
               sys.exit("DISCORD_ANNOUNCEMENTS_WEBHOOK not set")
           tag = os.environ["TAG"]
           url = os.environ["URL"]
-          raw = (os.environ.get("BODY") or "").strip()
+          body_file = os.environ.get("BODY_FILE")
+          raw = ""
+          if body_file and os.path.exists(body_file):
+              with open(body_file, "r", encoding="utf-8") as f:
+                  raw = f.read().strip()
           # Extract first non-empty bullet line that mentions "fix" or "add"
           # to produce a single-line teaser. Fallback: first paragraph.
           teaser = ""
