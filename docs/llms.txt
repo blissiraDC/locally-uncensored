@@ -1,41 +1,87 @@
 # Locally Uncensored
 
-> All-in-one local AI desktop app for uncensored chat, image generation, and video creation.
+> All-in-one local AI desktop app for uncensored chat, image generation, video generation, and a coding agent.
 
-Locally Uncensored is a free, open-source (MIT) desktop application that combines AI chat, image generation, and video creation in one interface. It runs 100% locally on your machine using Ollama for text generation and ComfyUI for image/video generation.
+Locally Uncensored is a free, open-source (AGPL-3.0) desktop application that combines AI chat, image generation, video creation, and a coding agent in one interface. It runs 100% locally on your machine. No telemetry, no analytics, no cloud calls unless you explicitly configure a cloud provider with your own API key.
 
 ## Key Facts
 - Name: Locally Uncensored
+- Current Version: v2.4.0 (April 23, 2026)
 - Type: Desktop AI Application
-- License: MIT (free and open source)
-- Platforms: Windows, macOS, Linux
-- Tech Stack: React 19, TypeScript, Tailwind CSS 4, Vite, Tauri v2
-- AI Backends: Ollama (text/chat), ComfyUI (images/video)
+- License: AGPL-3.0 (free and open source)
+- Platforms: Windows 10/11, Linux (deb, rpm, AppImage)
+- Tech Stack: React 19, TypeScript, Tailwind CSS 4, Vite 8, Tauri v2 (Rust backend)
+- AI Backends: 12 auto-detected (Ollama, LM Studio, vLLM, KoboldCpp, llama.cpp, LocalAI, Jan, TabbyAPI, GPT4All, Aphrodite, SGLang, TGI) plus ComfyUI for images/video
+- Cloud Providers: optional, BYOK (OpenAI, Anthropic, OpenRouter, Groq, Together, DeepSeek, Mistral)
 - GitHub: https://github.com/PurpleDoubleD/locally-uncensored
-- Website: https://purpledoubled.github.io/locally-uncensored/
+- Website: https://locallyuncensored.com
+- Discord: https://discord.gg/nHnGnDw2c8
 - Author: PurpleDoubleD
 
 ## What Makes It Unique
-- Only local AI app combining chat + image generation + video generation in one interface
+- Only local AI app combining chat + coding agent + image generation + video generation + mobile remote in one interface
 - Uses abliterated/uncensored models by default (no content restrictions)
-- 25+ built-in AI personas
-- One-click setup (setup.bat/setup.sh handles everything)
-- One-click ComfyUI installation from within the app
-- No Docker required, no cloud services, no accounts, no telemetry
-- Auto-detects all installed models across Ollama and ComfyUI
+- 25+ built-in AI personas plus Caveman Mode (lite/full/ultra terseness levels)
+- Plug & Play setup wizard auto-detects 12 local backends
+- One-click in-app installer for Ollama and ComfyUI
+- Configurable HuggingFace GGUF download path (v2.4.0)
+- Built-in Codex coding agent with live tool-call streaming, file tree, AUTONOMY contract
+- Agent Mode with 14 tools, MCP integration, sub-agent delegation, budget caps
+- Mobile remote access via LAN or Cloudflare Tunnel with 6-digit passcode + QR setup
+- A/B Model Compare and Local Benchmark built in
+- Memory system and document RAG
+- Voice STT (Whisper) and TTS
+- Auto-update over signed NSIS channel for Windows
+- Single-instance lock (v2.4.0): double-launch focuses existing window
+- In-app Privacy section (v2.4.0): explicit data-handling statement
+- Re-run Onboarding button (v2.4.0): restart the first-launch wizard on demand
 
-## Supported Models
-- Chat: Llama 3.1 8B Abliterated, Mistral Nemo 12B, Qwen 3, DeepSeek R1
-- Images: Stable Diffusion XL, FLUX.1 Schnell, Juggernaut XL, Pony Diffusion
-- Video: Wan 2.1/2.2, AnimateDiff v3
+## Supported Chat Models
+- Qwen 3.6: 27B dense + 35B MoE (vision, agentic coding, thinking, 256K context, day-0 support)
+- Qwen 3.5: 9B / 27B / 35B MoE
+- Qwen 3-Coder: 30B + Next 80B
+- Gemma 4: 31B / 26B MoE / E4B / E2B (native vision + tools)
+- GPT-OSS: 120B and 20B
+- GLM 4.7 Flash: 30B (IQ2 to Q8 variants)
+- GLM 5.1: 754B MoE (IQ2_M, multi-file)
+- DeepSeek R1: distilled 8B / 14B / 32B / Llama 70B
+- Llama 4 Scout (16x17B MoE)
+- Mistral Small 3, Phi 4
+- Hermes 3, Llama 3.1 Abliterated, Qwen 3 14B Abliterated
+
+## Supported Image Models (via ComfyUI)
+- FLUX 2 Klein, FLUX.1
+- Z-Image Turbo (uncensored)
+- Juggernaut XL, Dreamshaper, RealVis
+- ERNIE-Image (Baidu, Turbo + Base)
+- Stable Diffusion XL, SD 3.5
+
+## Supported Video Models (via ComfyUI)
+- Wan 2.1 (1.3B + 14B), Wan 2.2
+- HunyuanVideo 1.5
+- LTX 2.3
+- FramePack F1 (image-to-video on 6 GB VRAM)
+- AnimateDiff Lightning
+- CogVideoX
+- SVD (Stable Video Diffusion)
 
 ## Comparison
-- vs Open WebUI: LU adds image + video generation, Open WebUI is chat-only
-- vs LM Studio: LU is open source and adds image + video, LM Studio is closed source chat-only
-- vs SillyTavern: LU has modern UI, built-in image/video gen, simpler setup
-- vs ComfyUI: LU provides a simple UI without node graphs, adds chat capabilities
+- vs Open WebUI: LU adds image + video gen, agent mode, mobile remote, A/B compare. Open WebUI is chat-only.
+- vs LM Studio: LU is open source AGPL-3.0 and adds image + video + coding agent + mobile. LM Studio is closed-source chat-only with limited extensibility.
+- vs SillyTavern: LU has modern Tauri UI, built-in image/video gen, simpler setup, 12-backend auto-detect.
+- vs ComfyUI: LU bundles ComfyUI as the image/video backend but provides a simple chat-style UI on top.
+- vs Jan, GPT4All, KoboldCpp, Msty: LU offers all-in-one (chat + image + video + coding agent + mobile).
 
 ## Hardware Requirements
-- Minimum: 8 GB RAM for text chat
-- Recommended: NVIDIA GPU with 8+ GB VRAM for image generation
-- Video generation: 10-12 GB VRAM recommended
+- Minimum: 8 GB RAM for text chat with small models (Llama 3.2 1B, Qwen 2.5 3B)
+- Recommended: 8 GB+ VRAM NVIDIA GPU for FLUX, Juggernaut XL image gen
+- Video generation: 10-12 GB VRAM (Wan 1.3B, LTX 2.3)
+- Image-to-video: 6 GB VRAM minimum (FramePack F1)
+- Best in class: 24 GB+ VRAM for Qwen 3.6 35B MoE and 35B+ chat models
+
+## Privacy
+- 100% local by default
+- No telemetry, no analytics, no model pings home
+- Only outbound traffic without explicit opt-in: GitHub Releases auto-update checks
+- Cloud providers optional, BYOK (your API keys, your data)
+- Data lives in %APPDATA%/Locally Uncensored on Windows (or equivalent on Linux/macOS)
