@@ -365,8 +365,11 @@ export function CreateView() {
         </div>
       )}
 
-      {/* Not responding */}
-      {status && !status.running && status.found && !isStarting && !connected && (
+      {/* Not responding — suppress while ComfyUI is being installed (the dir
+          appears mid-install, but the server obviously isn't up yet, so this
+          banner used to flash for the whole install duration which made users
+          think something was wrong) */}
+      {status && !status.running && status.found && !isStarting && !connected && !installing && (
         <div className="flex items-center justify-between px-4 py-2 bg-orange-500/5 border-b border-orange-500/10 text-xs">
           <div className="flex items-center gap-2 text-orange-400">
             <AlertTriangle size={12} />
@@ -389,6 +392,13 @@ export function CreateView() {
         </div>
       )}
 
+      {/* Main content — hide while installing or while ComfyUI is missing,
+          since the user can't do anything with the params / gallery / prompt
+          input until install finishes (the install panel + the not-found
+          banner each provide the next-step UI on their own; showing the
+          mode switcher + empty gallery + dead Generate button below them
+          was just visual noise) */}
+      {!installing && !notFound && (
       <div className="flex-1 flex overflow-hidden">
         {/* Main content */}
         <div className="flex-1 flex flex-col overflow-hidden p-4 gap-3">
@@ -700,6 +710,7 @@ export function CreateView() {
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }
