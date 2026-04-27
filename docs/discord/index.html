@@ -90,8 +90,11 @@
          directly, bypassing the browser entirely. Works regardless of
          what browser-side privacy / VPN / strict-mode is enabled. If
          the user does not have the Discord app installed, the protocol
-         handler does nothing and the secondary CTA remains as fallback. -->
-    <a class="cta-primary" href="discord://invite/c9kquPfU4x">Open in Discord App</a>
+         handler does nothing and the secondary CTA remains as fallback.
+         Format: `discord://-/invite/<code>` — the `-` is Discord's
+         internal "current user" path prefix; the older `discord://invite/<code>`
+         pattern opens the app but does not actually load the invite. -->
+    <a class="cta-primary" href="discord://-/invite/c9kquPfU4x">Open in Discord App</a>
 
     <!-- Secondary: regular https invite. Works in most browsers.
          Some browsers (Opera with strict privacy defaults, certain
@@ -130,7 +133,7 @@
         // protocol handler — avoids "site blocked from opening app"
         // prompts in some browsers when the redirect fires too eagerly.
         setTimeout(function () {
-          window.location.href = 'discord://invite/c9kquPfU4x';
+          window.location.href = 'discord://-/invite/c9kquPfU4x';
         }, 250);
       } catch (e) {
         // No-op: if location.href fails for any reason, the visible
