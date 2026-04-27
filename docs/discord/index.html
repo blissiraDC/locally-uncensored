@@ -8,7 +8,7 @@
   <meta name="description" content="Join the Locally Uncensored Discord community.">
   <style>
     :root { color-scheme: dark; }
-    html, body { margin: 0; padding: 0; height: 100%; }
+    html, body { margin: 0; padding: 0; min-height: 100%; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
       background: #0d0d0d;
@@ -18,11 +18,11 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 24px;
+      padding: 32px 20px;
       text-align: center;
     }
     h1 {
-      font-size: 1.4rem;
+      font-size: 1.5rem;
       font-weight: 500;
       margin: 0 0 4px 0;
     }
@@ -32,7 +32,15 @@
       max-width: 460px;
       line-height: 1.5;
     }
-    .stack { display: flex; flex-direction: column; gap: 12px; align-items: stretch; min-width: 280px; margin-top: 16px; }
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: stretch;
+      width: 100%;
+      max-width: 320px;
+      margin-top: 16px;
+    }
     a.cta-primary {
       background: #5865F2;
       color: #fff;
@@ -45,40 +53,84 @@
     }
     a.cta-primary:hover { background: #4752C4; }
     a.cta-secondary {
-      color: #a78bfa;
+      color: #c4b5fd;
       text-decoration: none;
-      padding: 10px 28px;
+      padding: 12px 28px;
       border: 1px solid #2a2a2a;
       border-radius: 8px;
       font-size: 0.95rem;
       text-align: center;
-      transition: border-color 0.15s ease;
+      transition: border-color 0.15s ease, color 0.15s ease;
     }
-    a.cta-secondary:hover { border-color: #a78bfa; }
-    .tip {
+    a.cta-secondary:hover { border-color: #a78bfa; color: #f0f0f0; }
+    .divider {
+      display: flex;
+      align-items: center;
+      width: 100%;
       max-width: 460px;
-      margin-top: 24px;
-      padding: 14px 18px;
+      margin: 32px 0 8px 0;
+      color: #525252;
+      font-size: 0.85rem;
+      gap: 12px;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #2a2a2a;
+    }
+    .manual {
+      max-width: 460px;
+      width: 100%;
       background: #161616;
       border: 1px solid #2a2a2a;
-      border-radius: 8px;
-      color: #a3a3a3;
-      font-size: 0.9rem;
-      line-height: 1.5;
+      border-radius: 10px;
+      padding: 20px;
       text-align: left;
+      color: #d4d4d4;
+      font-size: 0.95rem;
+      line-height: 1.7;
     }
-    .tip strong { color: #f0f0f0; }
-    code {
+    .manual strong { color: #f0f0f0; }
+    .manual ol { padding-left: 20px; margin: 8px 0 12px 0; }
+    .manual li { margin: 4px 0; }
+    .copy-row {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .copy-code {
+      flex: 1;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      background: #0d0d0d;
+      border: 1px solid #2a2a2a;
+      color: #f0f0f0;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 1rem;
+      letter-spacing: 1px;
+      user-select: all;
+      text-align: center;
+    }
+    .copy-btn {
       background: #2a2a2a;
       color: #f0f0f0;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 0.95em;
-      letter-spacing: 0.5px;
-      user-select: all;
+      border: 1px solid #2a2a2a;
+      padding: 0 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.9rem;
+      transition: background 0.15s ease;
     }
-    .small { color: #525252; font-size: 0.8rem; margin-top: 12px; }
+    .copy-btn:hover { background: #3a3a3a; }
+    .copy-btn.copied { background: #1f6f3f; border-color: #2f8f5f; }
+    .small {
+      color: #525252;
+      font-size: 0.8rem;
+      margin-top: 16px;
+    }
   </style>
 </head>
 <body>
@@ -86,58 +138,88 @@
   <p>Local, private, uncensored AI &mdash; for everyone running models on their own hardware.</p>
 
   <div class="stack">
-    <!-- Primary: discord:// deeplink. Opens the Discord desktop app
-         directly, bypassing the browser entirely. Works regardless of
-         what browser-side privacy / VPN / strict-mode is enabled. If
-         the user does not have the Discord app installed, the protocol
-         handler does nothing and the secondary CTA remains as fallback.
-         Format: `discord://-/invite/<code>` — the `-` is Discord's
-         internal "current user" path prefix; the older `discord://invite/<code>`
-         pattern opens the app but does not actually load the invite. -->
-    <a class="cta-primary" href="discord://-/invite/c9kquPfU4x">Open in Discord App</a>
+    <!-- Primary: standard discord.gg URL. Works in Chrome / Firefox / Edge /
+         Safari / Discord mobile (which intercepts via universal links). On
+         Windows + macOS with Discord desktop installed, the OS handler also
+         opens the app for many users. -->
+    <a class="cta-primary" href="https://discord.gg/c9kquPfU4x" target="_blank" rel="noopener">Join in Browser</a>
 
-    <!-- Secondary: regular https invite. Works in most browsers.
-         Some browsers (Opera with strict privacy defaults, certain
-         extension stacks) break the discord.com join flow even when
-         VPN / ad-block / tracker-block are off — for those, the
-         primary CTA above is the workaround. -->
-    <a class="cta-secondary" href="https://discord.gg/c9kquPfU4x">Or join in your browser</a>
+    <!-- Secondary: discord:// deeplink. Some browsers (Opera with strict
+         defaults, certain extension stacks) block discord.gg's join flow
+         entirely, even with VPN / ad-block / trackers off. The deeplink
+         hands off to the desktop app's protocol handler when it works.
+         Inconsistent across systems — paste-code below is the guaranteed
+         path. -->
+    <a class="cta-secondary" href="discord://discord.gg/c9kquPfU4x">Open in Discord App</a>
   </div>
 
-  <div class="tip">
-    <strong>Browser showing &ldquo;invite invalid&rdquo;?</strong>
-    Some browsers (notably Opera, even with VPN / ad-block / trackers off)
-    break Discord&rsquo;s join page. Two fixes:
-    <br><br>
-    1. Click <em>Open in Discord App</em> above &mdash; bypasses the browser.
-    <br>
-    2. Or open the Discord app, click the <strong>+</strong> icon, choose
-       <em>Join Server</em>, and paste the invite code: <code>c9kquPfU4x</code>
+  <div class="divider">
+    <span>or join manually &mdash; works everywhere</span>
   </div>
 
-  <p class="small">Direct invite: discord.gg/c9kquPfU4x</p>
+  <div class="manual">
+    <strong>If neither button worked above</strong> &mdash; or your browser blocks
+    the Discord join page (Opera, strict-privacy setups) &mdash; the manual path
+    works regardless of browser, app, or VPN:
+
+    <ol>
+      <li>Open the Discord app (desktop or mobile).</li>
+      <li>Click the <strong>+</strong> icon at the left of the server list.</li>
+      <li>Choose <strong>Join a Server</strong>.</li>
+      <li>Paste the invite code below.</li>
+    </ol>
+
+    <div class="copy-row">
+      <span class="copy-code" id="invite-code">c9kquPfU4x</span>
+      <button class="copy-btn" id="copy-btn" type="button" aria-label="Copy invite code">Copy</button>
+    </div>
+  </div>
+
+  <p class="small">Direct link &middot; discord.gg/c9kquPfU4x</p>
 
   <script>
-    // Auto-attempt the deeplink on page load. If the user has the
-    // Discord app installed, this opens the app instantly. If not, the
-    // browser silently ignores it and the user stays on this page so
-    // they can use the visible buttons.
-    //
-    // We do NOT auto-redirect to https://discord.gg afterwards because
-    // for the Opera users this page exists to help, that web URL is
-    // exactly what was failing. Letting the user stay and pick the
-    // app option (or the manual paste-code workaround) is the win.
     (function () {
-      try {
-        // Tiny delay so the page paints before we trigger the
-        // protocol handler — avoids "site blocked from opening app"
-        // prompts in some browsers when the redirect fires too eagerly.
-        setTimeout(function () {
-          window.location.href = 'discord://-/invite/c9kquPfU4x';
-        }, 250);
-      } catch (e) {
-        // No-op: if location.href fails for any reason, the visible
-        // buttons remain functional.
+      var btn = document.getElementById('copy-btn');
+      var codeEl = document.getElementById('invite-code');
+      if (!btn || !codeEl) return;
+
+      btn.addEventListener('click', function () {
+        var code = codeEl.textContent.trim();
+        var done = function () {
+          btn.classList.add('copied');
+          btn.textContent = 'Copied';
+          setTimeout(function () {
+            btn.classList.remove('copied');
+            btn.textContent = 'Copy';
+          }, 1800);
+        };
+
+        // Modern API first, with a textarea-based fallback for browsers that
+        // block clipboard-write on insecure or restricted contexts.
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).then(done).catch(function () {
+            fallbackCopy(code, done);
+          });
+        } else {
+          fallbackCopy(code, done);
+        }
+      });
+
+      function fallbackCopy(text, onDone) {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          onDone();
+        } catch (e) {
+          // If even this fails, the user can still triple-click the code
+          // (it has user-select:all) and copy manually with Ctrl+C.
+        }
       }
     })();
   </script>
