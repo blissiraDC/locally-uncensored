@@ -15,7 +15,7 @@ Locally Uncensored is a free, open-source (AGPL-3.0) desktop application that co
 - Cloud Providers: optional, BYOK (OpenAI, Anthropic, OpenRouter, Groq, Together, DeepSeek, Mistral)
 - GitHub: https://github.com/PurpleDoubleD/locally-uncensored
 - Website: https://locallyuncensored.com
-- Discord: https://discord.gg/nHnGnDw2c8
+- Discord: https://locallyuncensored.com/discord
 - Author: PurpleDoubleD
 
 ## What Makes It Unique

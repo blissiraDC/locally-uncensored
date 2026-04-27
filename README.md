@@ -12,7 +12,7 @@ No cloud. No data collection. No API keys. Auto-detects 12 local backends. Your 
 [![GitHub stars](https://img.shields.io/github/stars/PurpleDoubleD/locally-uncensored?style=social)](https://github.com/PurpleDoubleD/locally-uncensored/stargazers)
 [![GitHub last commit](https://img.shields.io/github/last-commit/PurpleDoubleD/locally-uncensored)](https://github.com/PurpleDoubleD/locally-uncensored/commits)
 [![GitHub Discussions](https://img.shields.io/github/discussions/PurpleDoubleD/locally-uncensored)](https://github.com/PurpleDoubleD/locally-uncensored/discussions)
-[![Discord](https://img.shields.io/discord/1496087522042843146?style=flat-square&logo=discord&label=Discord&color=5865F2)](https://discord.gg/nHnGnDw2c8)
+[![Discord](https://img.shields.io/discord/1496087522042843146?style=flat-square&logo=discord&label=Discord&color=5865F2)](https://locallyuncensored.com/discord)
 [![Website](https://img.shields.io/badge/Website-locallyuncensored.com-8b5cf6)](https://locallyuncensored.com)
 
 <img src="docs/demo.gif" alt="Locally Uncensored Demo" width="700">
@@ -275,7 +275,7 @@ npm run tauri build  # Production binary
 
 ## Community
 
-Join the Discord: **https://discord.gg/nHnGnDw2c8**. Ask questions, share what you built, or help others in our forum channels — chat / image gen / video gen / coding agent.
+Join the Discord: **https://locallyuncensored.com/discord**. Ask questions, share what you built, or help others in our forum channels — chat / image gen / video gen / coding agent.
 
 ## Contributing
 

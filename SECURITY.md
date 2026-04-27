@@ -7,7 +7,7 @@ If you discover a security vulnerability, please report it responsibly.
 **Do NOT open a public issue.** Instead:
 
 1. Use [GitHub's private vulnerability reporting](https://github.com/PurpleDoubleD/locally-uncensored/security/advisories/new), or
-2. Reach out via the [Discord](https://discord.gg/nHnGnDw2c8) DM.
+2. Reach out via the [Discord](https://locallyuncensored.com/discord) DM.
 
 Include:
 - Description of the vulnerability

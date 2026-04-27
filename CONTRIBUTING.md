@@ -143,6 +143,6 @@ By contributing, you agree that your contributions will be licensed under the AG
 
 ## Where to ask
 
-- **Discord:** https://discord.gg/nHnGnDw2c8 — real-time chat with users and maintainers. Fastest path for questions, design discussions, and coordination on larger PRs.
+- **Discord:** https://locallyuncensored.com/discord — real-time chat with users and maintainers. Fastest path for questions, design discussions, and coordination on larger PRs.
 - **GitHub Discussions:** https://github.com/PurpleDoubleD/locally-uncensored/discussions — threaded, searchable. Good for long-form questions or proposals you want archived.
 - **GitHub Issues:** bug reports and well-scoped feature requests only. Anything open-ended → Discord or Discussions first.
